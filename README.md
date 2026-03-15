@@ -1,4 +1,3 @@
-```markdown
 # OpenAudio Suite
 
 A family of **zero-dependency, browser-native audio utilities** for web projects. Choose the library that fits your use case.
