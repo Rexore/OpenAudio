@@ -1,3 +1,4 @@
+```markdown
 # OpenAudio Suite
 
 A family of **zero-dependency, browser-native audio utilities** for web projects. Choose the library that fits your use case.
@@ -12,7 +13,7 @@ A family of **zero-dependency, browser-native audio utilities** for web projects
 
 ## Three Libraries in This Suite
 
-### **OpenAudio_r.js** — Randomized Scheduler
+### **OpenAudio_r.js** - Randomized Scheduler
 *For ambient, looped, or randomized audio playback*
 
 ```javascript
@@ -22,22 +23,22 @@ const engine = new AudioEngine([
   { src: 'ambient/birds.mp3',  label: 'Birds' }
 ]);
 
-// Plays clips in random order, every 3–5 seconds
+// Plays clips in random order, every 3-5 seconds
 document.addEventListener('click', () => engine.start(), { once: true });
 ```
 
 **Key Features:**
-- 🎲 **Shuffle bag algorithm** — Each clip plays exactly once per cycle
-- 🔄 **Ambient scheduling** — Random inter-clip delays (customizable)
-- 📱 **Mobile-friendly** — Handles autoplay policies automatically
-- 🌙 **Background tab resilience** — Detects visibility changes, recalculates timing
-- 🎛️ **Lifecycle callbacks** — `onPlay`, `onEnd`, `onCycleReset`
+- 🎲 **Shuffle bag algorithm** - Each clip plays exactly once per cycle
+- 🔄 **Ambient scheduling** - Random inter-clip delays (customizable)
+- 📱 **Mobile-friendly** - Handles autoplay policies automatically
+- 🌙 **Background tab resilience** - Detects visibility changes, recalculates timing
+- 🎛️ **Lifecycle callbacks** - `onPlay`, `onEnd`, `onCycleReset`
 
 **Version:** 2.4.0 | **File:** `OpenAudio_r.js` (~9 KB, 3 KB gzipped)
 
 ---
 
-### **OpenAudio_s.js** — Sequential Playlist
+### **OpenAudio_s.js** - Sequential Playlist
 *For click-to-advance or auto-play sequential audio*
 
 ```javascript
@@ -54,17 +55,17 @@ document.getElementById('next-btn').addEventListener('click', () => player.next(
 ```
 
 **Key Features:**
-- ▶️ **Sequential playback** — Plays clips in fixed order
-- 🖱️ **Manual or auto-advance** — User controls pacing or auto-play
-- 🔀 **Jump & navigation** — Goto clip by index or label
-- ⏸️ **Play/pause/resume** — Full transport controls
-- 📊 **Progress tracking** — Know your current position in sequence
+- ▶️ **Sequential playback** - Plays clips in fixed order
+- 🖱️ **Manual or auto-advance** - User controls pacing or auto-play
+- 🔀 **Jump & navigation** - Goto clip by index or label
+- ⏸️ **Play/pause/resume** - Full transport controls
+- 📊 **Progress tracking** - Know your current position in sequence
 
 **Version:** 1.0.0 | **File:** `OpenAudio_s.js` (~5 KB, 2 KB gzipped)
 
 ---
 
-### **OpenAudio.js** — Simple Player
+### **OpenAudio.js** - Simple Player
 *For single-clip, one-shot audio playback with background tab awareness*
 
 ```javascript
@@ -81,12 +82,12 @@ document.getElementById('btn').addEventListener('click', () => player.play());
 ```
 
 **Key Features:**
-- ▶️ **One-shot playback** — Plays a single audio file once
-- 🔁 **Replayable** — Call `play()` again to replay from start
-- ⏹️ **Stop control** — Pause and rewind mid-playback
-- 🔍 **Background tab detection** — Detects when tab loses/regains focus
-- ⏸️ **Smart pause/resume** — Optional pause on background, resume on return
-- 📱 **Same autoplay unlock** — Silent MP3 unlock as others
+- ▶️ **One-shot playback** - Plays a single audio file once
+- 🔁 **Replayable** - Call `play()` again to replay from start
+- ⏹️ **Stop control** - Pause and rewind mid-playback
+- 🔍 **Background tab detection** - Detects when tab loses/regains focus
+- ⏸️ **Smart pause/resume** - Optional pause on background, resume on return
+- 📱 **Same autoplay unlock** - Silent MP3 unlock as others
 
 **Version:** 1.1.0 | **File:** `OpenAudio.js` (~5 KB, 2 KB gzipped)
 
@@ -328,7 +329,7 @@ setTimeout(() => player.play(), 1000);
 
 ### "NotAllowedError" in Console
 **Cause:** Autoplay policy blocked playback.
-**Fix:** Same as above — use a user gesture.
+**Fix:** Same as above - use a user gesture.
 
 ---
 
@@ -353,7 +354,7 @@ const click = new SingleAudio('sound.mp3'); // OpenAudio.js
 | OpenAudio_s.js only | 5 KB | < 150 KB |
 | OpenAudio.js only | 4 KB | < 100 KB |
 | All three combined | ~18 KB | < 2 MB |
-| All three gzipped | ~6.5 KB | — |
+| All three gzipped | ~6.5 KB | - |
 
 No external dependencies. Pure HTML5 Audio API.
 
@@ -391,11 +392,11 @@ See [CHANGELOG.md](./CHANGELOG.md) for version history.
 
 ## Documentation
 
-- 📖 [OpenAudio_r.js API](./docs/OPENAUDIO_R.md) — Randomized scheduler
-- 📖 [OpenAudio_s.js API](./docs/OPENAUDIO_S.md) — Sequential player
-- 📖 [OpenAudio.js API](./docs/OPENAUDIO.md) — Single-clip player
-- 📊 [Feature Comparison](./docs/COMPARISON.md) — Detailed comparison
-- 💻 [Examples](./examples/) — Working demos
+- 📖 [OpenAudio_r.js API](./docs/OPENAUDIO_R.md) - Randomized scheduler
+- 📖 [OpenAudio_s.js API](./docs/OPENAUDIO_S.md) - Sequential player
+- 📖 [OpenAudio.js API](./docs/OPENAUDIO.md) - Single-clip player
+- 📊 [Feature Comparison](./docs/COMPARISON.md) - Detailed comparison
+- 💻 [Examples](./examples/) - Working demos
 
 ---
 
@@ -412,10 +413,10 @@ A: Yes! They complement each other and don't conflict.
 A: No. All work as plain `<script>` tags. No bundler needed.
 
 **Q: Can I modify these?**  
-A: Yes, under GPL-3.0. Include the license and note your changes.
+A: Yes, under Apache 2.0. Include the license and note your changes.
 
 **Q: Commercial use?**  
-A: Yes. GPL-3.0 allows commercial use. You must provide source code and include the license.
+A: Yes. Apache 2.0 allows commercial use. You must include the license and notice of changes.
 
 **Q: What about Web Audio API?**  
 A: These libraries use HTML5 Audio. Web Audio API is for advanced features (effects, visualization, frame-perfect timing). See [COMPARISON.md](./docs/COMPARISON.md).
@@ -424,11 +425,12 @@ A: These libraries use HTML5 Audio. Web Audio API is for advanced features (effe
 
 ## Resources
 
-- 📖 [HTML5 Audio — MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/audio)
-- 🎛️ [Web Audio API — MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
-- 🎮 [Browser Autoplay Policy — Chrome Blog](https://developer.chrome.com/blog/autoplay/)
-- 📱 [Page Visibility API — MDN](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API)
+- 📖 [HTML5 Audio - MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/audio)
+- 🎛️ [Web Audio API - MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
+- 🎮 [Browser Autoplay Policy - Chrome Blog](https://developer.chrome.com/blog/autoplay/)
+- 📱 [Page Visibility API - MDN](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API)
 
 ---
 
 *Last updated: March 2025*
+```
