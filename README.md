@@ -4,6 +4,7 @@ A family of **zero-dependency, browser-native audio utilities** for web projects
 
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 [![No Dependencies](https://img.shields.io/badge/Dependencies-None-brightgreen)]()
+![npm](https://img.shields.io/npm/v/openaudio-suite.svg)
 
 ### npm i openaudio-suite
 
