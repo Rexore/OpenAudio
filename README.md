@@ -5,9 +5,11 @@ A family of **zero-dependency, browser-native audio utilities** for web projects
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL_3.0-blue.svg)](./LICENSE)
 [![No Dependencies](https://img.shields.io/badge/Dependencies-None-brightgreen)]()
 
+### npm i openaudio-suite
+
 ---
 
-## 📚 Three Libraries in This Suite
+## Three Libraries in This Suite
 
 ### **OpenAudio_r.js** — Randomized Scheduler
 *For ambient, looped, or randomized audio playback*
