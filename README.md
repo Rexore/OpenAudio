@@ -7,7 +7,7 @@ A family of **zero-dependency, browser-native audio utilities** for web projects
 
 ---
 
-## 📚 Libraries in This Suite
+## 📚 Three Libraries in This Suite
 
 ### **OpenAudio_r.js** — Randomized Scheduler
 *For ambient, looped, or randomized audio playback*
@@ -29,12 +29,35 @@ document.addEventListener('click', () => engine.start(), { once: true });
 - 📱 **Mobile-friendly** — Handles autoplay policies automatically
 - 🌙 **Background tab resilience** — Detects visibility changes, recalculates timing
 - 🎛️ **Lifecycle callbacks** — `onPlay`, `onEnd`, `onCycleReset`
-- ⚙️ **Runtime control** — Add clips, set volume, stop/start mid-cycle
 
-**Best for:** Games, ambient soundscapes, randomized audio environments, binaural beats, background music
+**Version:** 2.4.0 | **File:** `OpenAudio_r.js` (~9 KB, 3 KB gzipped)
 
-**Version:** 2.4.0  
-**File:** `OpenAudio_r.js` (~9 KB, 3 KB gzipped)
+---
+
+### **OpenAudio_s.js** — Sequential Playlist
+*For click-to-advance or auto-play sequential audio*
+
+```javascript
+const player = new SequentialAudio([
+  { src: 'intro.mp3', label: 'Introduction' },
+  { src: 'chapter1.mp3', label: 'Chapter 1' },
+  { src: 'chapter2.mp3', label: 'Chapter 2' }
+], {
+  autoAdvance: false  // Require click to advance
+});
+
+document.addEventListener('click', () => player.play(), { once: true });
+document.getElementById('next-btn').addEventListener('click', () => player.next());
+```
+
+**Key Features:**
+- ▶️ **Sequential playback** — Plays clips in fixed order
+- 🖱️ **Manual or auto-advance** — User controls pacing or auto-play
+- 🔀 **Jump & navigation** — Goto clip by index or label
+- ⏸️ **Play/pause/resume** — Full transport controls
+- 📊 **Progress tracking** — Know your current position in sequence
+
+**Version:** 1.0.0 | **File:** `OpenAudio_s.js` (~5 KB, 2 KB gzipped)
 
 ---
 
@@ -55,29 +78,53 @@ document.getElementById('btn').addEventListener('click', () => player.play());
 - ▶️ **One-shot playback** — Plays a single audio file once
 - 🔁 **Replayable** — Call `play()` again to replay from start
 - ⏹️ **Stop control** — Pause and rewind mid-playback
-- 📱 **Same autoplay unlock** — Same silent MP3 unlock as OpenAudio_r
-- 🎛️ **Callbacks** — `onPlay`, `onEnd` for lifecycle control
-- 🛠️ **SPA-safe** — `destroy()` method for clean component teardown
+- 📱 **Same autoplay unlock** — Silent MP3 unlock as others
 
-**Best for:** UI sounds, chimes, notifications, button clicks, single music tracks, sound effects
-
-**Version:** 1.0.0  
-**File:** `OpenAudio.js` (~4 KB, 1.5 KB gzipped)
+**Version:** 1.0.0 | **File:** `OpenAudio.js` (~4 KB, 1.5 KB gzipped)
 
 ---
 
 ## Quick Comparison
 
-| Feature | OpenAudio_r.js | OpenAudio.js |
-|---------|---|---|
-| **Clips** | Multiple | Single |
-| **Scheduling** | Random with delays | One-shot on demand |
-| **Shuffle Bag** | ✅ Yes | ❌ N/A |
-| **Volume Control** | ✅ `setVolume()` | ✅ Constructor option |
-| **Callbacks** | `onPlay`, `onEnd`, `onCycleReset` | `onPlay`, `onEnd` |
-| **Background Tab Detection** | ✅ Yes | ❌ No inter-clip gaps |
-| **File Size** | ~9 KB | ~4 KB |
-| **Use Case** | Ambient, scheduling | UI sounds, one-shots |
+| Feature | OpenAudio_r.js | OpenAudio_s.js | OpenAudio.js |
+|---------|---|---|---|
+| **Clips** | Multiple | Multiple | Single |
+| **Order** | Random | Sequential | N/A |
+| **Scheduling** | Delays between clips | Manual or auto-advance | On-demand |
+| **Shuffle Bag** | ✅ Yes | ❌ No | ❌ N/A |
+| **Navigation** | ❌ No | ✅ Goto/label jump | ❌ N/A |
+| **Volume Control** | ✅ Runtime | ❌ Constructor | ✅ Constructor |
+| **Callbacks** | onPlay, onEnd, onCycleReset | onPlay, onEnd, onComplete | onPlay, onEnd |
+| **Pause/Resume** | ❌ No | ✅ Yes | ❌ No |
+| **Background Tab Detection** | ✅ Yes | ❌ No | ❌ No |
+| **File Size** | ~9 KB | ~5 KB | ~4 KB |
+| **Use Case** | Ambient, randomized | Guided tours, tutorials, stories | UI sounds, notifications |
+
+---
+
+## Use Case Decision Tree
+
+```
+START
+
+Q1: How many audio clips do you need?
+├─ ONE: Use OpenAudio.js (Single-clip player)
+└─ MULTIPLE: Continue to Q2
+
+Q2: What order should clips play?
+├─ RANDOM: Use OpenAudio_r.js (Randomized scheduler)
+├─ SEQUENTIAL: Continue to Q3
+└─ ON-DEMAND: Use OpenAudio.js (one instance per sound)
+
+Q3: How should users advance through the sequence?
+├─ MANUAL CLICKS: Use OpenAudio_s.js with autoAdvance: false
+├─ AUTO-ADVANCE: Use OpenAudio_s.js with autoAdvance: true
+└─ NO CONTROL: Use OpenAudio_r.js
+
+Q4: Do you need frame-perfect scheduling or effects?
+├─ YES: Graduate to Web Audio API
+└─ NO: You're set!
+```
 
 ---
 
@@ -85,20 +132,20 @@ document.getElementById('btn').addEventListener('click', () => player.play());
 
 ### Option 1: Direct Script Tags
 ```html
-<!-- Use OpenAudio_r.js for scheduling -->
-<script src="OpenAudio_r.js"></script>
+<!-- Use whichever you need -->
+<script src="OpenAudio_r.js"></script>  <!-- Randomized scheduler -->
+<script src="OpenAudio_s.js"></script>  <!-- Sequential player -->
+<script src="OpenAudio.js"></script>    <!-- Single-clip player -->
 
-<!-- Or use OpenAudio.js for single clips -->
-<script src="OpenAudio.js"></script>
-
-<!-- Or both, if you need both in the same project -->
-<script src="OpenAudio_r.js"></script>
+<!-- Or combine as needed -->
+<script src="OpenAudio_s.js"></script>
 <script src="OpenAudio.js"></script>
 ```
 
 ### Option 2: ES6 Modules
 ```javascript
 import { AudioEngine } from './OpenAudio_r.js';
+import { SequentialAudio } from './OpenAudio_s.js';
 import { SingleAudio } from './OpenAudio.js';
 ```
 
@@ -108,166 +155,27 @@ npm install openaudio-suite
 ```
 
 ```javascript
-import { AudioEngine, SingleAudio } from 'openaudio-suite';
+import { AudioEngine, SequentialAudio, SingleAudio } from 'openaudio-suite';
 ```
-
----
-
-## Use Case Decision Tree
-
-**Do you need to play multiple clips in a randomized/looped sequence?**  
-→ Yes: Use **OpenAudio_r.js** (randomized scheduler)  
-→ No: Continue below
-
-**Do you need to play one audio file on demand (UI sound, notification, chime)?**  
-→ Yes: Use **OpenAudio.js** (simple player)  
-→ No: Neither library may be the right fit
-
-**Need frame-perfect scheduling, crossfading, or real-time DSP effects?**  
-→ Graduate to the [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
-
----
-
-## API Reference
-
-### OpenAudio_r.js (AudioEngine)
-
-```javascript
-// Constructor
-const engine = new AudioEngine(clips, options);
-
-// Public Methods
-engine.start()                    // Unlock & begin playback
-engine.stop()                     // Pause (preserve position)
-engine.reset()                    // Stop & clear played flags
-engine.setVolume(level)           // Set volume (0–1)
-engine.addClip(clip)              // Add clip at runtime
-engine.destroy()                  // Clean up listeners (SPA teardown)
-AudioEngine.canPlay(type)         // Static: check format support
-
-// Public Properties
-engine.isStarted                  // Boolean
-engine.isPlaying                  // Boolean
-
-// Constructor Options
-{
-  lowTime:      3,               // Min seconds between clips (default: 3)
-  maxTime:      5,               // Max seconds between clips (default: 5)
-  volume:       0.8,             // Volume 0–1 (default: 0.8)
-  onPlay:       (clip) => {},    // Fired when clip starts
-  onEnd:        (clip) => {},    // Fired when clip ends
-  onCycleReset: () => {}         // Fired when all clips played once
-}
-```
-
-See [`OpenAudio_r.js` documentation](./docs/OPENAUDIO_R.md) for detailed API.
-
----
-
-### OpenAudio.js (SingleAudio)
-
-```javascript
-// Constructor
-const player = new SingleAudio(src, options);
-
-// Public Methods
-player.play()                     // Unlock & play the clip
-player.stop()                     // Pause & rewind
-player.destroy()                  // Clean up (SPA teardown)
-SingleAudio.canPlay(type)         // Static: check format support
-
-// Public Properties
-player.isPlaying                  // Boolean
-
-// Constructor Options
-{
-  volume:  1.0,                  // Volume 0–1 (default: 1.0)
-  label:   'My Sound',           // Display name for console warnings
-  onPlay:  () => {},             // Fired when playback starts
-  onEnd:   () => {}              // Fired when playback ends
-}
-```
-
-See [`OpenAudio.js` documentation](./docs/OPENAUDIO.md) for detailed API.
 
 ---
 
 ## Examples
 
-### OpenAudio_r.js — Ambient Game Loop
-
-```javascript
-const ambientClips = [
-  { src: 'wind-1.mp3', label: 'Wind Gust 1' },
-  { src: 'wind-2.mp3', label: 'Wind Gust 2' },
-  { src: 'leaves.mp3', label: 'Rustling Leaves' },
-  { src: 'distant-bird.mp3', label: 'Distant Bird' }
-];
-
-const ambience = new AudioEngine(ambientClips, {
-  lowTime: 5,
-  maxTime: 15,
-  volume: 0.6,
-  onPlay: (clip) => console.log(`Ambient: ${clip.label}`),
-  onCycleReset: () => console.log('Ambient cycle reset')
-});
-
-// Start on first user interaction
-document.addEventListener('click', () => ambience.start(), { once: true });
-
-// Stop when game pauses
-function onGamePause() { ambience.stop(); }
-function onGameResume() { ambience.start(); } // Must be in user event
-```
-
-### OpenAudio.js — UI Sound Effects
-
-```javascript
-const uiSounds = {
-  click:   new SingleAudio('ui/click.mp3', { volume: 0.7, label: 'Click' }),
-  hover:   new SingleAudio('ui/hover.mp3', { volume: 0.5, label: 'Hover' }),
-  error:   new SingleAudio('ui/error.mp3', { volume: 0.8, label: 'Error' }),
-  success: new SingleAudio('ui/success.mp3', { volume: 0.9, label: 'Success' })
-};
-
-// Attach to UI elements
-document.querySelectorAll('button').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    uiSounds.click.play();
-    // ... handle click
-  });
-  
-  btn.addEventListener('mouseenter', (e) => {
-    uiSounds.hover.play();
-  });
-});
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-  Object.values(uiSounds).forEach(sound => sound.destroy());
-});
-```
-
-### Combined: Game with Ambient + UI Sounds
+### Scenario 1: Game with Ambient + UI Sounds
 
 ```javascript
 // Ambient soundscape
 const ambience = new AudioEngine([
-  { src: 'ambient/forest.mp3', label: 'Forest' },
-  { src: 'ambient/rain.mp3', label: 'Rain' }
-], { lowTime: 10, maxTime: 20, volume: 0.5 });
+  { src: 'forest.mp3' },
+  { src: 'rain.mp3' }
+], { lowTime: 5, maxTime: 15, volume: 0.6 });
 
 // UI sounds
 const clickSound = new SingleAudio('ui/click.mp3', { volume: 0.8 });
-const victorySound = new SingleAudio('ui/victory.mp3', { volume: 1.0 });
 
-// Start ambient on game start (inside a gesture)
-document.getElementById('start-game').addEventListener('click', () => {
-  ambience.start();
-  victorySound.play(); // Play fanfare
-});
-
-// Play click on button press
+// Start
+document.addEventListener('click', () => ambience.start(), { once: true });
 document.querySelectorAll('button').forEach(btn => {
   btn.addEventListener('click', () => clickSound.play());
 });
@@ -275,10 +183,68 @@ document.querySelectorAll('button').forEach(btn => {
 
 ---
 
+### Scenario 2: Narrated Story with Pause/Resume
+
+```javascript
+const story = new SequentialAudio([
+  { src: 'chapter1.mp3', label: 'Chapter 1' },
+  { src: 'chapter2.mp3', label: 'Chapter 2' },
+  { src: 'chapter3.mp3', label: 'Chapter 3' }
+], {
+  autoAdvance: false,  // User controls pacing
+  onPlay: (clip) => updateUI(`Reading: ${clip.label}`),
+  onComplete: () => showTheEnd()
+});
+
+document.addEventListener('click', () => story.play(), { once: true });
+document.getElementById('next-btn').addEventListener('click', () => story.next());
+document.getElementById('pause-btn').addEventListener('click', () => story.pause());
+document.getElementById('resume-btn').addEventListener('click', () => story.resume());
+```
+
+---
+
+### Scenario 3: Tutorial with Auto-Advance
+
+```javascript
+const tutorial = new SequentialAudio([
+  { src: 'intro.mp3', label: 'Intro' },
+  { src: 'step1.mp3', label: 'Step 1' },
+  { src: 'step2.mp3', label: 'Step 2' }
+], {
+  autoAdvance: true,  // Auto-play next step
+  onPlay: (clip) => highlightStep(clip.label),
+  onComplete: () => showCertificate()
+});
+
+document.getElementById('start-tutorial').addEventListener('click', () => {
+  tutorial.play();
+});
+```
+
+---
+
+### Scenario 4: Notification System
+
+```javascript
+const sounds = {
+  email: new SingleAudio('email.mp3'),
+  message: new SingleAudio('message.mp3'),
+  alert: new SingleAudio('alert.mp3')
+};
+
+function notify(type, message) {
+  sounds[type].play();
+  showNotification(message);
+}
+```
+
+---
+
 ## Browser Compatibility
 
-Both libraries require:
-- **HTML5 Audio element support** (universal in modern browsers)
+All three libraries require:
+- **HTML5 Audio element support** (universal)
 - **User gesture** for first audio playback (autoplay policy)
 
 | Browser | Version | Status |
@@ -292,53 +258,94 @@ Both libraries require:
 
 ---
 
+## API Quick Reference
+
+### OpenAudio_r.js (AudioEngine)
+```javascript
+engine.start()          // Begin playback
+engine.stop()           // Pause
+engine.reset()          // Stop & reset cycle
+engine.setVolume(0.5)   // Set volume
+engine.addClip(clip)    // Add clip at runtime
+engine.destroy()        // Cleanup
+```
+
+See [OPENAUDIO_R.md](./docs/OPENAUDIO_R.md) for full API.
+
+---
+
+### OpenAudio_s.js (SequentialAudio)
+```javascript
+player.play()              // Start playback
+player.next()              // Advance to next clip
+player.goto(index)         // Jump to clip by index
+player.gotoLabel(label)    // Jump to clip by label
+player.pause()             // Pause
+player.resume()            // Resume from pause
+player.stop()              // Stop & rewind
+player.reset()             // Reset to start
+player.destroy()           // Cleanup
+```
+
+See [OPENAUDIO_S.md](./docs/OPENAUDIO_S.md) for full API.
+
+---
+
+### OpenAudio.js (SingleAudio)
+```javascript
+player.play()     // Play the clip
+player.stop()     // Stop & rewind
+player.destroy()  // Cleanup
+```
+
+See [OPENAUDIO.md](./docs/OPENAUDIO.md) for full API.
+
+---
+
 ## Troubleshooting
 
 ### Audio Won't Play
-**Issue:** Silent autoplay or "NotAllowedError"
-
-**Solution:** Call `play()` or `start()` **synchronously inside a user event handler** (click, keydown, touchstart).
+**Cause:** Not called inside a user gesture.
+**Fix:** Call `play()` or `start()` inside a click, keydown, or touchstart handler.
 
 ```javascript
 // ✅ Correct
-document.addEventListener('click', () => engine.start());
+document.addEventListener('click', () => player.play());
 
-// ❌ Wrong (not in gesture)
-setTimeout(() => engine.start(), 1000);
+// ❌ Wrong
+setTimeout(() => player.play(), 1000);
 ```
 
-### Slow Clip Transitions
-**Issue:** First clip takes a while to start when you press play
+---
 
-**Solution (OpenAudio_r.js):** This is network prefetch during inter-clip gaps. File buffers during the delay, so subsequent clips are faster. Use precompressed audio or serve from a CDN.
+### "NotAllowedError" in Console
+**Cause:** Autoplay policy blocked playback.
+**Fix:** Same as above — use a user gesture.
 
-### Background Tab Gaps
-**Issue (OpenAudio_r.js only):** When you return from another tab, clips bunch together
+---
 
-**Solution:** The engine detects tab visibility and recalculates delays using wall-clock time. If a large gap occurred, the next clip plays immediately on tab return. This is by design.
-
-### Memory Leaks in SPAs
-**Issue:** Creating/destroying engines rapidly causes memory bloat
-
-**Solution:** Always call `destroy()` when removing an engine instance.
+### Multiple Libraries in Same Project
+**No problem!** They don't conflict.
 
 ```javascript
-// React
-useEffect(() => {
-  const engine = new AudioEngine(clips);
-  return () => engine.destroy(); // Clean up on unmount
-}, []);
+const ambience = new AudioEngine([...]);    // OpenAudio_r.js
+const story = new SequentialAudio([...]);   // OpenAudio_s.js
+const click = new SingleAudio('sound.mp3'); // OpenAudio.js
+
+// All three can run simultaneously
 ```
 
 ---
 
 ## Performance & Sizing
 
-| Library | Minified | Gzipped | Runtime Memory |
-|---------|----------|---------|---|
-| OpenAudio_r.js | ~9 KB | ~3 KB | < 1 MB (10 clips) |
-| OpenAudio.js | ~4 KB | ~1.5 KB | < 100 KB |
-| Both | ~13 KB | ~4.5 KB | < 2 MB (combined) |
+| Scenario | Size | Memory |
+|----------|------|--------|
+| OpenAudio_r.js only | 9 KB | < 1 MB |
+| OpenAudio_s.js only | 5 KB | < 150 KB |
+| OpenAudio.js only | 4 KB | < 100 KB |
+| All three combined | ~18 KB | < 2 MB |
+| All three gzipped | ~6.5 KB | — |
 
 No external dependencies. Pure HTML5 Audio API.
 
@@ -347,30 +354,42 @@ No external dependencies. Pure HTML5 Audio API.
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
-- Bug report guidelines
-- Feature request process
-- Code style & testing checklist
-- PR submission process
+- Bug reports
+- Feature requests
+- Code style
+- Testing checklist
+- PR guidelines
 
 ---
 
 ## License
 
-Both libraries are licensed under **GNU General Public License v3.0 or later**.
+All libraries are licensed under **GNU General Public License v3.0 or later**.
 
 See [LICENSE](./LICENSE) for the full text.
 
-**Commercial use permitted** — You must include the license and copyright notice. Derivative works must also be GPL-3.0-or-later.
+**Commercial use permitted** — Include license and copyright notice. Derivative works must also be GPL-3.0-or-later.
 
 ---
 
 ## Changelog
 
-See [CHANGELOG.md](./CHANGELOG.md) for detailed version history.
+See [CHANGELOG.md](./CHANGELOG.md) for version history.
 
 **Current Versions:**
 - OpenAudio_r.js: **2.4.0** (March 2025)
+- OpenAudio_s.js: **1.0.0** (March 2025)
 - OpenAudio.js: **1.0.0** (March 2025)
+
+---
+
+## Documentation
+
+- 📖 [OpenAudio_r.js API](./docs/OPENAUDIO_R.md) — Randomized scheduler
+- 📖 [OpenAudio_s.js API](./docs/OPENAUDIO_S.md) — Sequential player
+- 📖 [OpenAudio.js API](./docs/OPENAUDIO.md) — Single-clip player
+- 📊 [Feature Comparison](./docs/COMPARISON.md) — Detailed comparison
+- 💻 [Examples](./examples/) — Working demos
 
 ---
 
@@ -382,53 +401,30 @@ Have questions? Open a GitHub Issue or Discussion.
 
 ## FAQ
 
-**Q: Can I use both libraries in the same project?**  
-A: Yes! They don't conflict. Use `AudioEngine` for ambient/looped audio and `SingleAudio` for UI sounds.
+**Q: Can I use all three in the same project?**  
+A: Yes! They complement each other and don't conflict.
 
-**Q: Which one should I use?**  
-A: Use the [decision tree](#use-case-decision-tree) above, or: random scheduling → OpenAudio_r.js; one-shot sounds → OpenAudio.js.
+**Q: Do I need a build system?**  
+A: No. All work as plain `<script>` tags. No bundler needed.
 
-**Q: Do I need npm or a build system?**  
-A: No. Both libraries work as plain `<script>` tags. No dependencies, no bundler needed.
-
-**Q: Can I modify these for my project?**  
+**Q: Can I modify these?**  
 A: Yes, under GPL-3.0. Include the license and note your changes.
 
-**Q: What's the difference between this and Web Audio API?**  
-A: These libraries use simple, mobile-friendly HTML5 Audio. Web Audio API gives you crossfading, real-time DSP, and frame-perfect scheduling, but with more setup and mobile complexity. See the [comparison table](#quick-comparison) and README files for details.
-
-**Q: Can I use this commercially?**  
+**Q: Commercial use?**  
 A: Yes. GPL-3.0 allows commercial use. You must provide source code and include the license.
+
+**Q: What about Web Audio API?**  
+A: These libraries use HTML5 Audio. Web Audio API is for advanced features (effects, visualization, frame-perfect timing). See [COMPARISON.md](./docs/COMPARISON.md).
 
 ---
 
 ## Resources
 
-- 📖 [HTML5 Audio Element — MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/audio)
+- 📖 [HTML5 Audio — MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/audio)
 - 🎛️ [Web Audio API — MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
 - 🎮 [Browser Autoplay Policy — Chrome Blog](https://developer.chrome.com/blog/autoplay/)
 - 📱 [Page Visibility API — MDN](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API)
 
 ---
 
-## Directory Structure
-
-```
-OpenAudio/
-├── OpenAudio_r.js           # Randomized scheduler (2.4.0)
-├── OpenAudio.js             # Single-clip player (1.0.0)
-├── README.md                # This file
-├── LICENSE                  # GPL-3.0-or-later
-├── CONTRIBUTING.md          # How to contribute
-├── CHANGELOG.md             # Version history
-├── .gitignore               # Git ignore rules
-├── package.json             # npm metadata
-├── /docs                    # Detailed documentation
-│   ├── OPENAUDIO_R.md       # OpenAudio_r.js API reference
-│   ├── OPENAUDIO.md         # OpenAudio.js API reference
-│   └── COMPARISON.md        # Feature comparison & use cases
-└── /examples                # HTML demo files
-    ├── ambient-scheduler.html
-    ├── ui-sounds.html
-    └── combined-game.html
-```
+*Last updated: March 2025*
