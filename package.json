@@ -65,8 +65,7 @@
     "LICENSE",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
-    "docs/",
-    "examples/"
+    "docs/"
   ],
   "scripts": {
     "test": "Manual testing required. See CONTRIBUTING.md for testing checklist."
