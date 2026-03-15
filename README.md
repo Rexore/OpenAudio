@@ -62,13 +62,16 @@ document.getElementById('next-btn').addEventListener('click', () => player.next(
 ---
 
 ### **OpenAudio.js** — Simple Player
-*For single-clip, one-shot audio playback*
+*For single-clip, one-shot audio playback with background tab awareness*
 
 ```javascript
-const player = new SingleAudio('audio/chime.mp3', {
+const player = new OpenAudio('audio/chime.mp3', {
   volume: 0.8,
-  onPlay: () => console.log('Playing'),
-  onEnd:  () => console.log('Done')
+  pauseOnHidden: true,  // Pause when tab loses focus
+  onPlay:   () => console.log('Playing'),
+  onEnd:    () => console.log('Done'),
+  onHidden: () => console.log('Tab hidden'),
+  onVisible: () => console.log('Tab visible')
 });
 
 document.getElementById('btn').addEventListener('click', () => player.play());
@@ -78,9 +81,11 @@ document.getElementById('btn').addEventListener('click', () => player.play());
 - ▶️ **One-shot playback** — Plays a single audio file once
 - 🔁 **Replayable** — Call `play()` again to replay from start
 - ⏹️ **Stop control** — Pause and rewind mid-playback
+- 🔍 **Background tab detection** — Detects when tab loses/regains focus
+- ⏸️ **Smart pause/resume** — Optional pause on background, resume on return
 - 📱 **Same autoplay unlock** — Silent MP3 unlock as others
 
-**Version:** 1.0.0 | **File:** `OpenAudio.js` (~4 KB, 1.5 KB gzipped)
+**Version:** 1.1.0 | **File:** `OpenAudio.js` (~5 KB, 2 KB gzipped)
 
 ---
 
@@ -94,11 +99,11 @@ document.getElementById('btn').addEventListener('click', () => player.play());
 | **Shuffle Bag** | ✅ Yes | ❌ No | ❌ N/A |
 | **Navigation** | ❌ No | ✅ Goto/label jump | ❌ N/A |
 | **Volume Control** | ✅ Runtime | ❌ Constructor | ✅ Constructor |
-| **Callbacks** | onPlay, onEnd, onCycleReset | onPlay, onEnd, onComplete | onPlay, onEnd |
-| **Pause/Resume** | ❌ No | ✅ Yes | ❌ No |
-| **Background Tab Detection** | ✅ Yes | ❌ No | ❌ No |
-| **File Size** | ~9 KB | ~5 KB | ~4 KB |
-| **Use Case** | Ambient, randomized | Guided tours, tutorials, stories | UI sounds, notifications |
+| **Callbacks** | onPlay, onEnd, onCycleReset | onPlay, onEnd, onComplete | onPlay, onEnd, onHidden, onVisible |
+| **Pause/Resume** | ❌ No | ✅ Yes | ✅ Yes (pauseOnHidden) |
+| **Background Tab Detection** | ✅ Yes | ❌ No | ✅ Yes |
+| **File Size** | ~9 KB | ~5 KB | ~5 KB |
+| **Use Case** | Ambient, randomized | Guided tours, tutorials, stories | UI sounds, notifications, game audio |
 
 ---
 
@@ -392,8 +397,6 @@ See [CHANGELOG.md](./CHANGELOG.md) for version history.
 - 💻 [Examples](./examples/) — Working demos
 
 ---
-
-## Made with ❤️ by Rexore
 
 Have questions? Open a GitHub Issue or Discussion.
 
