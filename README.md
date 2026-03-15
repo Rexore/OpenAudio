@@ -371,11 +371,9 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
 
 ## License
 
-All libraries are licensed under **GNU General Public License v3.0 or later**.
+All libraries are licensed under **Apache-2.0**.
 
 See [LICENSE](./LICENSE) for the full text.
-
-**Commercial use permitted** — Include license and copyright notice. Derivative works must also be GPL-3.0-or-later.
 
 ---
 
