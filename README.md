@@ -8,8 +8,6 @@ A family of **zero-dependency, browser-native audio utilities** for web projects
 ![npm downloads](https://img.shields.io/npm/dt/openaudio-suite.svg)
 ### npm i openaudio-suite
 
-Here's the snippet — drop this just below the "OpenAudio Suite" heading and the badges:
-
 > ⚠️ **Alpha Software**
 > The entire OpenAudio suite is currently in alpha. APIs may change, bugs are expected, and production use is not recommended. `OpenAudio_r.js` is the most tested library; `OpenAudio_s.js` and `OpenAudio.js` have received limited testing. Use at your own risk and please report issues.
 ``` 
