@@ -1,37 +1,32 @@
 name: Publish to npm
 
 on:
-  push:
-    tags:
-      - 'v*'  # triggers on any tag starting with "v"
+  release:
+    types: [published]  # triggers when you publish a release in GitHub
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # required to create GitHub Release
-      packages: write  # required to publish to npm
+      contents: write   # needed to create release notes
+      packages: write   # needed to publish to npm
 
     steps:
-      # 1. Checkout repository
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
           registry-url: https://registry.npmjs.org
 
-      # 3. Install dependencies
       - name: Install dependencies
         run: npm ci
 
-      # 4. Publish to npm
       - name: Publish to npm
         run: |
-          if [[ "${GITHUB_REF_NAME}" == *"-beta"* ]]; then
+          if [[ "${GITHUB_EVENT_RELEASE_TAG_NAME}" == *"-beta"* ]]; then
             npm publish --tag beta
           else
             npm publish
@@ -39,24 +34,8 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # 5. Create GitHub Release
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
-          body: |
-            Published to npm successfully
-            Package: openaudio-suite
-            Version: ${{ github.ref_name }}
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-beta') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 6. Log workflow info
       - name: Log publish info
         run: |
-          echo "Publish workflow completed"
           echo "Package: openaudio-suite"
-          echo "Version: ${{ github.ref_name }}"
+          echo "Version: ${{ github.event.release.tag_name }}"
+          echo "Published successfully!"
