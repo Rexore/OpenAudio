@@ -2,7 +2,7 @@
 
 A family of **zero-dependency, browser-native audio utilities** for web projects. Choose the library that fits your use case.
 
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPL_3.0-blue.svg)](./LICENSE)
+![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 [![No Dependencies](https://img.shields.io/badge/Dependencies-None-brightgreen)]()
 
 ### npm i openaudio-suite
