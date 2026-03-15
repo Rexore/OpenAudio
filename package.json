@@ -1,0 +1,80 @@
+{
+  "name": "openaudio-suite",
+  "version": "2.4.0",
+  "description": "Zero-dependency audio utilities for web browsers. Three libraries: OpenAudio_r.js (randomized scheduler), OpenAudio_s.js (sequential player), OpenAudio.js v1.1.0 (single-clip player with background tab detection). Pure HTML5 Audio API. GPL-3.0-or-later.",
+  "main": "OpenAudio_r.js",
+  "exports": {
+    "import": {
+      ".": "./OpenAudio_r.js",
+      "./r": "./OpenAudio_r.js",
+      "./randomized": "./OpenAudio_r.js",
+      "./scheduler": "./OpenAudio_r.js",
+      "./s": "./OpenAudio_s.js",
+      "./sequential": "./OpenAudio_s.js",
+      "./playlist": "./OpenAudio_s.js",
+      "./single": "./OpenAudio.js",
+      "./player": "./OpenAudio.js"
+    },
+    "require": {
+      ".": "./OpenAudio_r.js",
+      "./r": "./OpenAudio_r.js",
+      "./randomized": "./OpenAudio_r.js",
+      "./scheduler": "./OpenAudio_r.js",
+      "./s": "./OpenAudio_s.js",
+      "./sequential": "./OpenAudio_s.js",
+      "./playlist": "./OpenAudio_s.js",
+      "./single": "./OpenAudio.js",
+      "./player": "./OpenAudio.js"
+    }
+  },
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "author": {
+    "name": "Rexore",
+    "url": "https://github.com/Rexore"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rexore/OpenAudio.git"
+  },
+  "homepage": "https://github.com/Rexore/OpenAudio",
+  "keywords": [
+    "audio",
+    "web-audio",
+    "audio-engine",
+    "audio-player",
+    "scheduler",
+    "randomized",
+    "sequential",
+    "playlist",
+    "ambient",
+    "game-audio",
+    "ui-sounds",
+    "background-tab-detection",
+    "pause-resume",
+    "no-dependencies",
+    "zero-dependencies",
+    "browser",
+    "html5-audio"
+  ],
+  "files": [
+    "OpenAudio_r.js",
+    "OpenAudio_s.js",
+    "OpenAudio.js",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "docs/",
+    "examples/"
+  ],
+  "scripts": {
+    "test": "Manual testing required. See CONTRIBUTING.md for testing checklist."
+  },
+  "bugs": {
+    "url": "https://github.com/Rexore/OpenAudio/issues"
+  },
+  "engines": {
+    "node": ">=12.0.0"
+  }
+}

@@ -1,0 +1,38 @@
+# Node
+node_modules/
+package-lock.json
+yarn.lock
+npm-debug.log
+yarn-error.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build
+dist/
+build/
+*.min.js
+*.map
+
+# Testing
+coverage/
+.nyc_output/
+
+# OS
+Thumbs.db
+.AppleDouble
+.LSOverride
+
+# Logs
+*.log
+logs/
