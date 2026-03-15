@@ -4,6 +4,12 @@ All notable changes to the OpenAudio suite are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## v2.5.0 – 2026-03-15
+### Improvements
+- Added consistent **semantic versioning** strategy across releases.
+- Added **package-lock.json** to support reproducible installs and GitHub Actions CI.
+- No changes to OpenAudio JS files; all improvements are tooling and release management.
+
 ---
 
 ## OpenAudio.js
