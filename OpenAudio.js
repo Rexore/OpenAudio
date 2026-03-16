@@ -1,7 +1,7 @@
 /**
  * @file        OpenAudio.js
  * @author      Rexore
- * @version     1.2.0
+ * @version     1.3.0
  * @license     Apache-2.0
  *
  * Copyright 2025 Rexore
@@ -23,8 +23,16 @@
  * Key behaviours:
  *   - Silent MP3 unlock on the shared element: satisfies browser autoplay
  *     policy on mobile/desktop by playing a base64 MP3 synchronously on the
- *     shared #audio element inside the gesture context.
+ *     shared #audio element inside the gesture context. The unlock is performed
+ *     only once (#isUnlocked flag); subsequent play() calls go directly to
+ *     #playClip() without re-unlocking, preserving preloaded data and
+ *     eliminating replay latency.
  *   - #isUnlocking guard: ignores rapid repeated calls during the async unlock.
+ *   - #playCancelled flag: stop() plants a cancellation token that the
+ *     in-flight unlock .then() checks before calling #playClip(), preventing
+ *     phantom playback after stop() is called during an unlock.
+ *   - #isPlaying private field + getter: state is read-only externally,
+ *     preventing callers from silently corrupting the state machine.
  *   - Background tab detection: listens to the Page Visibility API
  *     (document.visibilitychange). Optionally pauses on hide and resumes on
  *     show (pauseOnHidden). Always fires onHidden / onVisible callbacks.
@@ -34,7 +42,8 @@
  *     so a throwing handler can never stall playback.
  *   - #isDestroyed flag: all public methods are safe no-ops after destroy().
  *   - destroy(): removes the visibilitychange listener and releases the Audio
- *     element. Safe for SPA component teardown.
+ *     element via removeAttribute('src') + load() per the WHATWG spec resource-
+ *     release pattern. Safe for SPA component teardown.
  *   - canPlay() static: check browser format support before constructing.
  *
  * ============================================================================
@@ -60,8 +69,11 @@
  * Call play() synchronously inside a user-initiated event handler.
  * Scroll does NOT qualify as a gesture in Chrome or Firefox.
  *
- * play() sets #audio.src to a silent base64 MP3 and plays it on the shared
- * element within the gesture context, blessing it for all future play() calls.
+ * On the first call, play() sets #audio.src to a silent base64 MP3 and plays
+ * it on the shared element within the gesture context, blessing it for all
+ * future play() calls. On every subsequent call #isUnlocked is true, so
+ * play() calls #playClip() directly — no re-unlock, no preload invalidation.
+ *
  * Previously a throwaway new Audio() was used for the unlock — this failed
  * on iOS Safari because the throwaway element was blessed but #audio was not,
  * causing NotAllowedError on the actual clip.
@@ -76,13 +88,40 @@
  *
  * pauseOnHidden: true
  *   The clip is paused when the tab hides and resumed from the same position
- *   when it returns. Note: on strict autoplay policies, resume after a long
- *   background period may be silently blocked if the user has not interacted
- *   since hiding. A console warning is emitted if this occurs.
+ *   when it returns. If the browser's autoplay policy has changed between the
+ *   initial unlock and the visibility-restore (e.g. page was reloaded in the
+ *   background), resume may be blocked and a console warning will be emitted.
+ *   In practice, on all major 2025 browsers (Chrome, Firefox, Safari, Edge),
+ *   resuming a previously-playing element after a tab becomes visible again
+ *   does not require a new user gesture.
  *
  * ============================================================================
  * CHANGELOG
  * ============================================================================
+ *
+ * 1.3.0
+ *   - #isUnlocked flag: unlock is performed only once. Subsequent play() calls
+ *     (including replays) skip the silent-MP3 dance entirely, preserving
+ *     preloaded data and eliminating per-replay latency. Previously every
+ *     play() discarded buffered audio and re-fetched the real src.
+ *   - #playCancelled flag: stop() plants a cancellation token before pausing.
+ *     The in-flight unlock .then() checks the flag before calling #playClip(),
+ *     preventing phantom playback when stop() is called during an async unlock.
+ *     Previously stop() could not cancel an in-flight unlock.
+ *   - isPlaying is now a private field (#isPlaying) exposed via a read-only
+ *     getter. Previously it was a plain public property, allowing callers to
+ *     silently corrupt the state machine.
+ *   - #isPlaying is now set true synchronously before the .play() call in
+ *     #playClip(), closing the double-play race window. Reverted to false in
+ *     .catch() on non-abort errors. Previously setting it in .then() left a
+ *     window where rapid play() calls could attempt concurrent playback.
+ *   - Same pre-set/revert pattern applied to the visibility-resume .play()
+ *     call in #onVisibilityChange(). Previously the .then() set isPlaying =
+ *     true after stop() had already set it to false.
+ *   - destroy() now uses removeAttribute('src') + load() per the WHATWG
+ *     HTMLMediaElement resource-release spec, rather than src = ''.
+ *   - destroy() now resets #pausedByVisibility to false.
+ *   - Removed unreachable this.#audio?.pause() from #playClip() .then().
  *
  * 1.2.0
  *   - Unlock now plays the silent MP3 on the shared #audio element rather
@@ -128,18 +167,22 @@
  * PUBLIC API
  * ============================================================================
  *
- *   player.play()      Unlock (if needed) and play the clip. Must be inside a
- *                      gesture handler on first call. Rewinds and replays if
- *                      called after the clip has already ended. Ignored while
- *                      already playing, unlocking, or after destroy().
+ *   player.play()      Unlock (first call only) and play the clip. Must be
+ *                      inside a gesture handler on first call. Rewinds and
+ *                      replays if called after the clip has already ended.
+ *                      Ignored while already playing, unlocking, or after
+ *                      destroy().
  *
- *   player.stop()      Pause and rewind to start. No-op after destroy().
+ *   player.stop()      Pause and rewind to start. Cancels any in-flight
+ *                      unlock so the clip does not start after stop() returns.
+ *                      No-op after destroy().
  *
- *   player.destroy()   Remove visibilitychange listener, release Audio element.
- *                      Call on SPA component unmount. All subsequent calls are
- *                      safe no-ops.
+ *   player.destroy()   Remove visibilitychange listener, release Audio element
+ *                      per WHATWG spec (removeAttribute + load). Call on SPA
+ *                      component unmount. All subsequent calls are safe no-ops.
  *
- *   player.isPlaying   {boolean}  True while the clip is actively playing.
+ *   player.isPlaying   {boolean}  Read-only. True while the clip is actively
+ *                                 playing.
  *
  * ── STATIC UTILITY ──────────────────────────────────────────────────────────
  *
@@ -150,7 +193,8 @@
  */
 
 // Silent 1-second MP3 — used to unlock the shared Audio element within the
-// gesture context before the real clip is played.
+// gesture context before the real clip is played. Played only once per
+// instance (#isUnlocked ensures it is never repeated).
 const _OPENAUDIO_SILENT_MP3 =
   'data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsgU291bmQgRWZmZWN0cyBMaWJyYXJ5Ly8v' +
   'VFNTTQAAAAALAAADAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAA' +
@@ -173,8 +217,16 @@ class OpenAudio {
   #onVisible;
   #pauseOnHidden;
   #isUnlocking        = false;
+  // True after the first successful user-gesture unlock. Subsequent play()
+  // calls skip the silent-MP3 dance entirely, preserving preloaded data.
+  #isUnlocked         = false;
   #isDestroyed        = false;
   #pausedByVisibility = false;
+  // Written by stop() and checked by the async unlock .then() before it calls
+  // #playClip(), preventing phantom playback when stop() races an unlock.
+  #playCancelled      = false;
+  // Backing field for the read-only isPlaying getter.
+  #isPlaying          = false;
 
   /**
    * @param {string}   src
@@ -201,11 +253,10 @@ class OpenAudio {
     this.#onHidden      = options.onHidden  || null;
     this.#onVisible     = options.onVisible || null;
 
-    this.isPlaying = false;
-
     // Single shared Audio element — created once, reused on replay.
-    // Pre-loading the real src here so the browser can begin buffering
-    // before play() is called.
+    // Preloading the real src here so the browser can begin buffering before
+    // play() is called. Because #isUnlocked skips the re-unlock on subsequent
+    // play() calls, this preloaded data is now actually preserved and used.
     this.#audio         = new Audio();
     this.#audio.volume  = this.#volume;
     this.#audio.preload = 'auto';
@@ -214,7 +265,7 @@ class OpenAudio {
     // Store handler reference so destroy() can remove it cleanly.
     this.#endedHandler = () => {
       if (this.#isDestroyed) return;
-      this.isPlaying = false;
+      this.#isPlaying = false;
       try { if (this.#onEnd) this.#onEnd(); } catch (e) {
         console.warn(`OpenAudio: onEnd callback error (${this.#label}):`, e);
       }
@@ -229,8 +280,11 @@ class OpenAudio {
 
   // ── PUBLIC API ──────────────────────────────────────────────────────────────
 
+  /** @returns {boolean} True while the clip is actively playing. Read-only. */
+  get isPlaying() { return this.#isPlaying; }
+
   /**
-   * Unlock the Audio element (if needed) and play the clip.
+   * Unlock the Audio element (first call only) and play the clip.
    *
    * Must be called synchronously inside a user gesture on first use.
    * Rewinds and replays from the start if the clip has already ended.
@@ -238,7 +292,17 @@ class OpenAudio {
    * or after destroy() has been called.
    */
   play() {
-    if (this.#isDestroyed || this.isPlaying || this.#isUnlocking) return;
+    if (this.#isDestroyed || this.#isPlaying || this.#isUnlocking) return;
+
+    // Reset cancellation flag on every fresh play() invocation.
+    this.#playCancelled = false;
+
+    // Element already blessed — skip the silent-MP3 unlock entirely.
+    // The real src is already loaded; #playClip() can call .play() directly.
+    if (this.#isUnlocked) {
+      this.#playClip();
+      return;
+    }
 
     this.#isUnlocking = true;
 
@@ -250,8 +314,10 @@ class OpenAudio {
     this.#audio.play()
       .then(() => {
         this.#isUnlocking = false;
-        if (this.#isDestroyed) return;
-        // Restore the real src and volume, then play.
+        // Honour a stop() call that arrived while the unlock was in progress.
+        if (this.#isDestroyed || this.#playCancelled) return;
+        // Mark permanently unlocked so future calls skip this block.
+        this.#isUnlocked   = true;
         this.#audio.src    = this.#src;
         this.#audio.volume = this.#volume;
         this.#playClip();
@@ -271,28 +337,41 @@ class OpenAudio {
   }
 
   /**
-   * Stop playback and rewind to start. No-op after destroy().
+   * Stop playback and rewind to start.
+   *
+   * Also cancels any in-flight unlock via #playCancelled, so the clip will
+   * not start playing after stop() returns even if the async unlock .then()
+   * fires a few milliseconds later. No-op after destroy().
    */
   stop() {
     if (this.#isDestroyed) return;
+    this.#playCancelled      = true;
     this.#audio.pause();
     this.#audio.currentTime  = 0;
-    this.isPlaying           = false;
+    this.#isPlaying          = false;
     this.#pausedByVisibility = false;
   }
 
   /**
    * Remove the visibilitychange listener and release the Audio element.
+   * Uses removeAttribute('src') + load() per the WHATWG HTMLMediaElement
+   * resource-release spec to abort any pending network activity cleanly.
    * Call on SPA component unmount. All subsequent method calls are safe no-ops.
    */
   destroy() {
     if (this.#isDestroyed) return;
-    this.#isDestroyed = true;
+    this.#isDestroyed        = true;
+    this.#pausedByVisibility = false;
     this.#audio.pause();
     this.#audio.removeEventListener('ended', this.#endedHandler);
     document.removeEventListener('visibilitychange', this.#boundVisibility);
-    this.#audio.src = '';
-    this.#audio     = null;
+    // WHATWG-specified resource-release sequence: removeAttribute('src') +
+    // load() aborts any in-progress network fetch and resets the media element
+    // state machine cleanly, avoiding the spurious 'error' events that
+    // src = '' can fire on some browsers.
+    this.#audio.removeAttribute('src');
+    this.#audio.load();
+    this.#audio = null;
   }
 
   /**
@@ -321,9 +400,9 @@ class OpenAudio {
       try { if (this.#onHidden) this.#onHidden(); } catch (e) {
         console.warn(`OpenAudio: onHidden callback error (${this.#label}):`, e);
       }
-      if (this.#pauseOnHidden && this.isPlaying) {
+      if (this.#pauseOnHidden && this.#isPlaying) {
         this.#audio.pause();
-        this.isPlaying           = false;
+        this.#isPlaying          = false;
         this.#pausedByVisibility = true;
       }
 
@@ -333,14 +412,17 @@ class OpenAudio {
       }
       if (this.#pauseOnHidden && this.#pausedByVisibility) {
         this.#pausedByVisibility = false;
+        // Set #isPlaying true synchronously before the Promise, then revert in
+        // .catch() if play() fails — mirrors the #playClip() pattern, closing
+        // the race where a stop() .then() could overwrite stop()'s false.
+        this.#isPlaying = true;
         this.#audio.play()
-          .then(() => { this.isPlaying = true; })
           .catch(err => {
-            if (err.name !== 'AbortError') {
-              console.warn(
-                `OpenAudio: resume after visibility restore failed for "${this.#label}".\nError:`, err
-              );
-            }
+            this.#isPlaying = false;
+            if (err.name === 'AbortError') return;
+            console.warn(
+              `OpenAudio: resume after visibility restore failed for "${this.#label}".\nError:`, err
+            );
           });
       }
     }
@@ -348,6 +430,11 @@ class OpenAudio {
 
   /**
    * Play the real clip on the already-unlocked shared Audio element.
+   *
+   * #isPlaying is set true synchronously before the .play() call so that any
+   * rapid second play() call hits the isPlaying guard immediately, closing the
+   * race window that previously existed between the call and .then(). On
+   * failure, #isPlaying is reverted to false in .catch().
    */
   #playClip() {
     if (this.#isDestroyed) return;
@@ -355,16 +442,18 @@ class OpenAudio {
     this.#audio.currentTime  = 0;
     this.#audio.volume       = this.#volume;
     this.#pausedByVisibility = false;
+    // Set before the async boundary to close the double-play race window.
+    this.#isPlaying          = true;
 
     this.#audio.play()
       .then(() => {
-        if (this.#isDestroyed) { this.#audio?.pause(); return; }
-        this.isPlaying = true;
+        if (this.#isDestroyed) return;
         try { if (this.#onPlay) this.#onPlay(); } catch (e) {
           console.warn(`OpenAudio: onPlay callback error (${this.#label}):`, e);
         }
       })
       .catch(err => {
+        this.#isPlaying = false;   // revert the optimistic flag on failure
         if (err.name === 'AbortError' || this.#isDestroyed) return;
         if (err.name === 'NotAllowedError') {
           console.warn(
@@ -421,11 +510,13 @@ document.addEventListener('touchstart', () => player.play(), { once: true });
 // ── Replay ────────────────────────────────────────────────────────────────────
 
 // play() rewinds and replays if the clip has already ended.
+// From 1.3.0: replay skips the unlock entirely — preloaded data is preserved.
 document.getElementById('replay-btn').addEventListener('click', () => player.play());
 
 
 // ── Stop mid-playback ─────────────────────────────────────────────────────────
 
+// From 1.3.0: stop() also cancels any in-flight unlock via #playCancelled.
 document.getElementById('stop-btn').addEventListener('click', () => player.stop());
 
 
