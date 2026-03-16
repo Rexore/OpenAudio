@@ -434,5 +434,5 @@ A: These libraries use HTML5 Audio. Web Audio API is for advanced features (effe
 
 ---
 
-*Last updated: March 2025*
+*Last updated: March 2026*
 ```
