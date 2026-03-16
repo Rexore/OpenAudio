@@ -1,7 +1,7 @@
 # OpenAudio_r.js API Reference
 
-**Version:** 2.4.0  
-**Class:** `AudioEngine`  
+**Version:** 2.6.0
+**Class:** `AudioEngine`
 **Use Case:** Randomized multi-clip scheduler with shuffle bag algorithm
 
 ---
@@ -14,11 +14,11 @@ const engine = new AudioEngine([
   { src: 'audio/rain.mp3',   label: 'Rain' },
   { src: 'audio/birds.mp3',  label: 'Birds' }
 ], {
-  lowTime:  3000,    // Min delay between clips (ms)
-  maxTime:  5000,    // Max delay between clips (ms)
+  lowTime:  3,
+  maxTime:  5,
   volume:   0.8,
-  onPlay:   () => console.log('Playing'),
-  onEnd:    () => console.log('Finished'),
+  onPlay:   (clip) => console.log('Playing:', clip.label),
+  onEnd:    (clip) => console.log('Finished:', clip.label),
   onCycleReset: () => console.log('New cycle')
 });
 
@@ -42,7 +42,7 @@ Array of audio clip objects. Each clip must have:
 ```javascript
 {
   src: 'path/to/audio.mp3',  // Required: URL or data URI
-  label: 'Clip Name'         // Optional: name for logging
+  label: 'Clip Name'         // Optional: name for logging/callbacks
 }
 ```
 
@@ -57,7 +57,7 @@ const engine = new AudioEngine([
 // With labels
 const engine = new AudioEngine([
   { src: 'ambient/forest.mp3', label: 'Forest Ambience' },
-  { src: 'ambient/rain.mp3', label: 'Rain Sounds' }
+  { src: 'ambient/rain.mp3',   label: 'Rain Sounds' }
 ]);
 
 // With data URIs
@@ -70,12 +70,12 @@ const engine = new AudioEngine([
 
 ```javascript
 {
-  lowTime:       3000,      // Min delay (ms), default: 3000
-  maxTime:       5000,      // Max delay (ms), default: 5000
-  volume:        0.8,       // Volume 0.0–1.0, default: 1.0
+  lowTime:       1,         // Min delay between clips (seconds), default: 1
+  maxTime:       10,        // Max delay between clips (seconds), default: 10
+  volume:        0.85,      // Volume 0.0–1.0, default: 0.85
   onPlay:        fn,        // Callback when clip starts
   onEnd:         fn,        // Callback when clip ends
-  onCycleReset:  fn         // Callback when cycle resets
+  onCycleReset:  fn         // Callback when all clips have played and cycle resets
 }
 ```
 
@@ -87,20 +87,20 @@ const engine = new AudioEngine([
 
 ### `start()`
 
-Begin playback. Must be called inside a user gesture on first use.
+Begin playback. Must be called inside a user gesture on first use. No-op after `destroy()`.
 
 ```javascript
-// First call (inside gesture - REQUIRED)
+// First call (inside gesture — REQUIRED)
 document.addEventListener('click', () => engine.start(), { once: true });
 
 // Subsequent calls
-engine.start();  // Safe to call anytime
+engine.start();  // Safe to call anytime — ignored if already running
 ```
 
 **Behavior:**
-- If already playing: ignored (safe)
+- If already started or unlocking: ignored (safe)
 - If stopped: resumes cycle from next clip
-- First call: plays silent unlock MP3, then starts scheduling
+- First call: plays silent unlock MP3, then schedules first clip
 
 **Browser Autoplay Policy:**
 - ✅ Works: click, keydown, touchstart, mousedown
@@ -110,7 +110,7 @@ engine.start();  // Safe to call anytime
 
 ### `stop()`
 
-Stop playback and reset the engine.
+Stop playback and preserve cycle state. No-op after `destroy()`.
 
 ```javascript
 engine.stop();
@@ -118,31 +118,41 @@ engine.stop();
 
 **Behavior:**
 - Pauses current clip
-- Resets timer
-- Next `start()` begins a fresh cycle
+- Cancels pending timer
+- Preserves played flags — next `start()` picks up from the same cycle position
 
 ```javascript
-engine.start();     // Playing clip
+engine.start();     // Playing
 engine.stop();      // Stopped
-engine.start();     // Starts new cycle
+engine.start();     // Resumes same cycle
+```
+
+---
+
+### `reset()`
+
+Stop and clear all played flags. No-op after `destroy()`.
+
+```javascript
+engine.reset();
+engine.start();  // Starts a completely fresh random cycle
 ```
 
 ---
 
 ### `setVolume(value)`
 
-Change volume during playback (runtime control).
+Change volume during playback. No-op after `destroy()`.
 
 ```javascript
 engine.setVolume(0.5);  // 50% volume
 engine.setVolume(1.0);  // Full volume
+engine.setVolume(0.0);  // Mute (engine keeps running)
 ```
 
 **Parameter:**
-- `value` (number) — Volume 0.0–1.0
-- Clamped to valid range automatically
+- `value` (number) — Volume 0.0–1.0. Clamped automatically.
 
-**Example:**
 ```javascript
 // Volume slider
 document.getElementById('volume-slider').addEventListener('input', (e) => {
@@ -152,39 +162,37 @@ document.getElementById('volume-slider').addEventListener('input', (e) => {
 
 ---
 
-### `addClip(src, label)`
+### `addClip(clip)`
 
-Add a clip to the engine at runtime.
+Add a clip to the engine at runtime. No-op after `destroy()`.
 
 ```javascript
-engine.addClip('audio/new-clip.mp3');
-engine.addClip('audio/new-clip.mp3', 'New Sound');
+engine.addClip({ src: 'audio/new-clip.mp3' });
+engine.addClip({ src: 'audio/new-clip.mp3', label: 'New Sound' });
 ```
 
 **Parameters:**
-- `src` (string) — Audio URL or data URI
-- `label` (string, optional) — Name for logging
+- `clip.src` (string, required) — Audio URL or data URI. Throws if missing or empty.
+- `clip.label` (string, optional) — Name for logging.
 
-**Behavior:**
-- New clip is added to the shuffle bag
-- Takes effect on next cycle
-- Doesn't interrupt current playback
+**Behavior:** New clip enters the shuffle pool immediately with `played = false`. Takes effect on the current or next selection — does not interrupt current playback.
 
 ---
 
 ### `destroy()`
 
-Clean up and remove listeners (essential for SPAs).
+Stop the engine, release the Audio element, and remove all document-level listeners. No-op if called more than once.
 
 ```javascript
 engine.destroy();
 ```
 
 **Behavior:**
-- Removes visibilitychange listener
-- Stops playback
-- Releases audio element
-- After this, don't call other methods
+- Cancels pending timer
+- Pauses current clip
+- Removes `visibilitychange` listener
+- Releases Audio element via `removeAttribute('src')` + `load()` (WHATWG spec)
+- All subsequent method calls are safe no-ops
 
 **React Example:**
 ```javascript
@@ -198,7 +206,7 @@ useEffect(() => {
 
 ### `canPlay(type)` — Static Method
 
-Check if browser supports a format.
+Check if browser supports a format before constructing.
 
 ```javascript
 if (AudioEngine.canPlay('audio/ogg')) {
@@ -209,7 +217,7 @@ if (AudioEngine.canPlay('audio/ogg')) {
 ```
 
 **Supported types:**
-- `'audio/mpeg'` or `'audio/mp3'` — MP3
+- `'audio/mpeg'` — MP3
 - `'audio/ogg'` — OGG Vorbis
 - `'audio/wav'` — WAV
 - `'audio/webm'` — WebM
@@ -221,9 +229,9 @@ if (AudioEngine.canPlay('audio/ogg')) {
 
 ### `isStarted`
 
-**Type:** `boolean` (read-only)
+**Type:** `boolean` (read-only getter)
 
-`true` if engine is currently running, `false` if stopped.
+`true` if engine has been started, `false` if stopped or not yet started.
 
 ```javascript
 const engine = new AudioEngine([...]);
@@ -237,79 +245,75 @@ console.log(engine.isStarted);  // false
 
 ---
 
+### `isPlaying`
+
+**Type:** `boolean` (read-only getter)
+
+`true` while a clip is actively playing, `false` between clips or when stopped.
+
+```javascript
+engine.start();
+// Shortly after...
+console.log(engine.isPlaying);  // true (clip playing)
+// During inter-clip gap...
+console.log(engine.isPlaying);  // false (waiting)
+```
+
+---
+
 ## Callbacks
 
-### `onPlay()`
+### `onPlay(clip)`
 
 Called when a clip **starts** playback.
 
 ```javascript
 const engine = new AudioEngine([...], {
-  onPlay: () => {
-    console.log('Clip started');
+  onPlay: (clip) => {
+    console.log('Clip started:', clip.label);
     updateUI('playing');
   }
 });
 ```
 
-**Timing:** Fires after silent unlock completes.
+**Parameter:** `clip` — the clip object `{ src, label }` currently playing.
 
-**Error handling:** Errors are caught and logged. A throwing `onPlay` won't stall the engine.
-
-```javascript
-onPlay: () => {
-  throw new Error('Oops!');  // Caught, logged, won't break engine
-}
-```
+**Error handling:** Errors are caught and logged. A throwing `onPlay` will not stall the engine.
 
 ---
 
-### `onEnd()`
+### `onEnd(clip)`
 
-Called when a clip **finishes naturally** (reaches end).
-
-Does **not** fire if you call `stop()` before clip ends.
+Called when a clip **finishes naturally** (reaches end). Does not fire if `stop()` is called before the clip ends.
 
 ```javascript
 const engine = new AudioEngine([...], {
-  onEnd: () => {
-    console.log('Clip finished, scheduling next');
+  onEnd: (clip) => {
+    console.log('Finished:', clip.label);
   }
 });
 ```
 
-**Timing:** Fires after clip ends, before next clip's delay starts.
-
-**Error handling:** Same as `onPlay()` — errors are caught.
+**Timing:** Fires after the clip ends, before the next inter-clip delay starts.
 
 ---
 
 ### `onCycleReset()`
 
-Called when all clips have played and the shuffle bag resets (new cycle begins).
+Called when all clips have played once and the shuffle bag resets for a new cycle.
 
 ```javascript
-const engine = new AudioEngine(
-  [
-    { src: 'clip1.mp3', label: 'One' },
-    { src: 'clip2.mp3', label: 'Two' },
-    { src: 'clip3.mp3', label: 'Three' }
-  ],
-  {
-    onCycleReset: () => {
-      console.log('Completed full cycle, starting again');
-    }
+const engine = new AudioEngine(clips, {
+  onCycleReset: () => {
+    console.log('Full cycle complete — starting again');
   }
-);
+});
 ```
 
 **Behavior:**
 - Fires when all N clips have played once
-- Shuffle bag is reset with same N clips
-- Cycle can start with any clip (no repeat rule)
-- Clip that ended current cycle won't be first clip of next cycle (unless only 1 clip)
-
-**Error handling:** Wrapped in try/catch (v2.4.0+).
+- The clip that ended the previous cycle will not be the first clip of the next cycle (with 2+ clips)
+- Error handling: wrapped in try/catch
 
 ---
 
@@ -326,7 +330,7 @@ Cycle 3:  [Clip A, Clip C, Clip B]
 
 **Not:**
 ```
-❌ Random repetition: [A, A, B, C, A]
+❌ Pure random: [A, A, B, C, A, A, C]
 ```
 
 **Benefits:**
@@ -338,36 +342,34 @@ Cycle 3:  [Clip A, Clip C, Clip B]
 
 ## Background Tab Throttling Mitigation
 
-Browsers throttle timers in background tabs. This engine detects and compensates.
+Browsers throttle `setTimeout` in background tabs (Chrome/Firefox: ~1Hz; some mobile power-saving modes may suspend entirely).
 
-**Example:**
-- You set `maxTime: 5000` (5-second max delay)
-- Tab goes to background for 10 seconds
-- When tab returns, engine recalculates
-- If 5+ seconds have elapsed, next clip plays immediately
-- Otherwise, remaining time is scheduled
+This engine compensates using the Page Visibility API:
 
-**Result:** Audio doesn't bunch up when tab returns.
+- When the tab returns to the foreground and a timer is pending, the elapsed wall-clock time is compared to the intended delay
+- If the delay has already elapsed, `#playNext()` fires immediately
+- Otherwise, a precise reschedule is set for the remaining duration
+
+**Result:** Inter-clip timing recovers cleanly after backgrounding without bunching up missed clips.
 
 ---
 
 ## Usage Patterns
 
-### Ambient Soundscape (Game)
+### Ambient Soundscape
 
 ```javascript
 const ambient = new AudioEngine([
-  { src: 'ambient/wind.mp3', label: 'Wind' },
-  { src: 'ambient/birds.mp3', label: 'Birds' },
+  { src: 'ambient/wind.mp3',     label: 'Wind' },
+  { src: 'ambient/birds.mp3',    label: 'Birds' },
   { src: 'ambient/rustling.mp3', label: 'Rustling' }
 ], {
-  lowTime:  2000,
-  maxTime:  8000,
+  lowTime:  2,
+  maxTime:  8,
   volume:   0.6,
   onCycleReset: () => console.log('Ambient cycle complete')
 });
 
-// Start on game begin
 startButton.addEventListener('click', () => ambient.start());
 ```
 
@@ -378,12 +380,10 @@ startButton.addEventListener('click', () => ambient.start());
 ```javascript
 const engine = new AudioEngine([...], { volume: 0.5 });
 
-// Slider control
 volumeSlider.addEventListener('input', (e) => {
   engine.setVolume(e.target.value / 100);
 });
 
-// Fade out on game pause
 pauseButton.addEventListener('click', () => {
   engine.setVolume(0);
   engine.stop();
@@ -402,7 +402,7 @@ const engine = new AudioEngine([
 
 // User unlocks new sounds
 unlockedSounds.forEach(sound => {
-  engine.addClip(sound.path, sound.name);
+  engine.addClip({ src: sound.path, label: sound.name });
 });
 ```
 
@@ -412,7 +412,6 @@ unlockedSounds.forEach(sound => {
 
 ```javascript
 import { useEffect } from 'react';
-import AudioEngine from './OpenAudio_r.js';
 
 export default function AmbientPlayer() {
   useEffect(() => {
@@ -420,13 +419,12 @@ export default function AmbientPlayer() {
       { src: 'audio/clip1.mp3', label: 'One' },
       { src: 'audio/clip2.mp3', label: 'Two' }
     ], {
-      onPlay: () => setIsPlaying(true),
-      onEnd: () => setIsPlaying(false)
+      onPlay: (clip) => console.log('Playing:', clip.label)
     });
 
     document.addEventListener('click', () => engine.start(), { once: true });
 
-    return () => engine.destroy();  // Clean up on unmount
+    return () => engine.destroy();  // Releases audio, removes listeners on unmount
   }, []);
 
   return <div>Audio Engine Ready</div>;
@@ -439,20 +437,18 @@ export default function AmbientPlayer() {
 
 ### Audio Won't Play (Silent)
 
-**Problem:** `start()` is called but nothing happens.
-
 **Causes:**
-1. Called outside a user gesture
+1. `start()` called outside a user gesture
 2. CORS or mixed-content issue
-3. Browser doesn't support audio format
-4. Audio file doesn't exist (404)
+3. Browser doesn't support the audio format
+4. Audio file not found (404)
 
 **Solutions:**
 ```javascript
 // ✅ Correct: inside gesture
 document.addEventListener('click', () => engine.start(), { once: true });
 
-// ❌ Wrong: no gesture
+// ❌ Wrong: no gesture context
 setTimeout(() => engine.start(), 1000);
 
 // ✅ Check format support
@@ -465,20 +461,14 @@ if (!AudioEngine.canPlay('audio/ogg')) {
 
 ### "NotAllowedError" in Console
 
-**Problem:** `NotAllowedError: play() failed due to autoplay policy`
-
 **Cause:** `start()` not called inside a user gesture.
-
-**Solution:** Wrap `start()` in a click, keydown, or touch event.
+**Solution:** Wrap `start()` in a click, keydown, or touchstart handler.
 
 ---
 
-### Stale Listeners in React
+### Stale Listeners in React / SPA
 
-**Problem:** Multiple engine instances leave listeners behind.
-
-**Cause:** Not calling `destroy()` on unmount.
-
+**Cause:** Not calling `destroy()` on component unmount.
 **Solution:**
 ```javascript
 useEffect(() => {
@@ -507,55 +497,57 @@ useEffect(() => {
 - **File Size:** ~9 KB (minified)
 - **Gzipped:** ~3 KB
 - **Runtime Memory:** < 200 KB
-- **CPU:** Minimal (just HTML5 Audio API)
+- **CPU:** Minimal (HTML5 Audio API only)
 
-Creating multiple engines is fine:
-```javascript
-const forest = new AudioEngine([...]);
-const city = new AudioEngine([...]);
-const space = new AudioEngine([...]);
-// All three use minimal resources
-```
+Multiple engines can run simultaneously without conflict.
 
 ---
 
 ## Changelog
 
-### v2.4.0 (March 2025)
+### v2.6.0 (March 2026)
+- All constructor and `addClip()` validation throws changed from `Error` to `TypeError`, matching ECMAScript convention and the behaviour of `OpenAudio.js` and `OpenAudio_s.js`. Callers catching errors via `instanceof TypeError` now correctly catch `AudioEngine` validation failures.
+- `#isStarted` is now set `true` inside the unlock `.then()` (after the Audio element is confirmed usable), not at the top of `start()` before the unlock. The duplicate-start guard during the unlock window is handled by `#isUnlocking`. This aligns state machine semantics with `OpenAudio_s.js`.
+- Expanded three compact single-line `try/catch` blocks (in the `onended` handler, `#resetCycle()`, and `#playNext()` `.then()`) to multi-line style, matching the formatting convention used throughout the suite.
+
+### v2.5.0 (March 2026)
+- `isStarted` and `isPlaying` are now read-only getters backed by private fields
+- `#isDestroyed` flag — all public methods are safe no-ops after `destroy()`
+- `destroy()` releases Audio element via `removeAttribute('src')` + `load()` (WHATWG spec)
+- `#isPlaying` set synchronously before `#audio.play()` in `#playNext()`, closing race window
+
+### v2.4.1 (March 2026)
+- Licence changed from GPL-3.0-or-later to Apache-2.0
+
+### v2.4.0 (March 2026)
 - `#isUnlocking` flag prevents spam-click race conditions
-- `destroy()` method removes listeners properly (SPA fix)
+- `destroy()` removes `visibilitychange` listener properly
 - `canPlay()` static format checking
 - `onCycleReset` callback wrapped in try/catch
-- Comprehensive documentation
 
-### v2.3.0 (February 2025)
+### v2.3.0 (February 2026)
 - Clip src validation
 - Next-clip prefetch (eliminates network gaps)
 - Background tab throttling mitigation
-- Wall-clock time recalculation
 
-### v2.2.0 (January 2025)
-- True private fields (#)
+### v2.2.0 (January 2026)
+- True private fields (`#`)
 - NotAllowedError handling
 - Silent base64 unlock
 - `setVolume()` runtime control
 
-### v2.1.0 (December 2024)
+### v2.1.0 (December 2025)
 - Single reusable Audio element
-- Mobile autoplay fix (iOS)
 - `stop()` race condition fix
 
-### v2.0.0 (October 2024)
-- Initial public release
-- Shuffle bag algorithm
-- Callbacks (onPlay, onEnd, onCycleReset)
-- `addClip()` runtime insertion
+### v2.0.0 (October 2025)
+- Initial public release. Shuffle bag algorithm. Callbacks. `addClip()`.
 
 ---
 
 ## License
 
-GNU General Public License v3.0 or later. See [LICENSE](../LICENSE).
+Apache License 2.0. See [LICENSE](../LICENSE).
 
 ---
 
@@ -568,4 +560,4 @@ GNU General Public License v3.0 or later. See [LICENSE](../LICENSE).
 
 ---
 
-*Last updated: March 2025*
+*Last updated: March 2026 — v2.6.0*
