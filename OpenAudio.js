@@ -1,14 +1,29 @@
 /**
  * @file        OpenAudio.js
  * @author      Rexore
- * @version     1.1.0
- * @license     GPL-3.0-or-later
+ * @version     1.2.0
+ * @license     Apache-2.0
+ *
+ * Copyright 2025 Rexore
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  * Plays one audio file once, triggered by any user event.
  *
  * Key behaviours:
- *   - Silent MP3 unlock: satisfies browser autoplay policy on mobile/desktop
- *     by playing a zero-length base64 MP3 synchronously inside the gesture.
+ *   - Silent MP3 unlock on the shared element: satisfies browser autoplay
+ *     policy on mobile/desktop by playing a base64 MP3 synchronously on the
+ *     shared #audio element inside the gesture context.
  *   - #isUnlocking guard: ignores rapid repeated calls during the async unlock.
  *   - Background tab detection: listens to the Page Visibility API
  *     (document.visibilitychange). Optionally pauses on hide and resumes on
@@ -17,6 +32,7 @@
  *     reference — no stale listener accumulation in SPAs.
  *   - Callbacks: onPlay, onEnd, onHidden, onVisible — all wrapped in try/catch
  *     so a throwing handler can never stall playback.
+ *   - #isDestroyed flag: all public methods are safe no-ops after destroy().
  *   - destroy(): removes the visibilitychange listener and releases the Audio
  *     element. Safe for SPA component teardown.
  *   - canPlay() static: check browser format support before constructing.
@@ -28,18 +44,14 @@
  *   const player = new OpenAudio('audio/sound.mp3', {
  *     volume:        0.9,
  *     label:         'My Sound',
- *     pauseOnHidden: true,             // pause when tab loses focus
+ *     pauseOnHidden: true,
  *     onPlay:        () => console.log('playing'),
  *     onEnd:         () => console.log('done'),
  *     onHidden:      () => console.log('tab hidden'),
  *     onVisible:     () => console.log('tab visible'),
  *   });
  *
- *   // Trigger on any user gesture:
  *   document.getElementById('btn').addEventListener('click', () => player.play());
- *   document.addEventListener('click',      () => player.play(), { once: true });
- *   document.addEventListener('keydown',    () => player.play(), { once: true });
- *   document.addEventListener('touchstart', () => player.play(), { once: true });
  *
  * ============================================================================
  * BROWSER AUTOPLAY POLICY
@@ -47,45 +59,52 @@
  *
  * Call play() synchronously inside a user-initiated event handler.
  * Scroll does NOT qualify as a gesture in Chrome or Firefox.
- * play() internally fires a silent base64 MP3 to unlock the audio element
- * before playing the real clip — required for iOS Safari compatibility.
+ *
+ * play() sets #audio.src to a silent base64 MP3 and plays it on the shared
+ * element within the gesture context, blessing it for all future play() calls.
+ * Previously a throwaway new Audio() was used for the unlock — this failed
+ * on iOS Safari because the throwaway element was blessed but #audio was not,
+ * causing NotAllowedError on the actual clip.
  *
  * ============================================================================
  * BACKGROUND TAB DETECTION
  * ============================================================================
  *
- * This engine listens to the Page Visibility API (document.visibilitychange).
+ * pauseOnHidden: false (default)
+ *   Audio continues when the tab is hidden. onHidden / onVisible still fire
+ *   so you can update UI state if needed.
  *
- * Behaviour depends on the pauseOnHidden option (default: false):
- *
- *   pauseOnHidden: false (default)
- *     Audio continues playing when the tab is hidden — browsers do not
- *     throttle active audio playback, only setTimeout timers. onHidden and
- *     onVisible still fire so you can update UI state if needed.
- *
- *   pauseOnHidden: true
- *     The clip is paused when the tab hides and resumed from the same
- *     position when the tab returns to the foreground. Useful when audio
- *     should only play while the page is visible (e.g. in-app sounds, game
- *     audio). Note: after a resume, browsers may require the resume call
- *     to be inside a gesture on stricter autoplay policies — if the user
- *     has not interacted since hiding, resume may be silently blocked.
- *
- * The visibilitychange listener is stored as a bound reference (#boundVisibility)
- * so that destroy() can pass the exact same function to removeEventListener.
- * An inline arrow function would create a new reference each time and could
- * not be removed, causing stale listeners to accumulate in SPAs.
+ * pauseOnHidden: true
+ *   The clip is paused when the tab hides and resumed from the same position
+ *   when it returns. Note: on strict autoplay policies, resume after a long
+ *   background period may be silently blocked if the user has not interacted
+ *   since hiding. A console warning is emitted if this occurs.
  *
  * ============================================================================
  * CHANGELOG
  * ============================================================================
+ *
+ * 1.2.0
+ *   - Unlock now plays the silent MP3 on the shared #audio element rather
+ *     than a throwaway new Audio(). Previously the throwaway was blessed but
+ *     #audio was not, causing NotAllowedError on iOS Safari for the real clip.
+ *   - #isDestroyed flag: all public methods (play, stop, destroy) return
+ *     immediately after destroy() has been called, making post-destroy calls
+ *     safe no-ops rather than throws on the nulled #audio element.
+ *   - destroy() now checks #isDestroyed to prevent double-destroy throwing.
+ *   - play() guard extended: also checks #isDestroyed.
+ *   - stop() guard extended: also checks #isDestroyed.
+ *   - #onVisibilityChange() guards on #isDestroyed and #audio null-check,
+ *     preventing a race if the event fires during or after teardown.
+ *   - canPlay() static: now returns false for empty/non-string input rather
+ *     than letting canPlayType() throw on undefined.
  *
  * 1.1.0
  *   - Background tab detection via Page Visibility API.
  *   - pauseOnHidden option: pause on hide, resume on show.
  *   - onHidden / onVisible callbacks, wrapped in try/catch.
  *   - #boundVisibility: stored bound reference for clean destroy() removal.
- *   - destroy() now removes the visibilitychange listener.
+ *   - destroy() removes the visibilitychange listener.
  *   - Class renamed from SingleAudio to OpenAudio to match filename.
  *
  * 1.0.0
@@ -94,223 +113,268 @@
  *     destroy(), canPlay() static.
  *
  * ============================================================================
+ * CONFIGURATION OPTIONS
+ * ============================================================================
+ *
+ *   volume        {number}   Playback volume 0.0–1.0              default: 1.0
+ *   label         {string}   Name shown in console warnings        default: src
+ *   pauseOnHidden {boolean}  Pause when tab hides, resume on show  default: false
+ *   onPlay        {Function} Called when playback starts           default: null
+ *   onEnd         {Function} Called when playback ends naturally   default: null
+ *   onHidden      {Function} Called when the tab becomes hidden    default: null
+ *   onVisible     {Function} Called when the tab becomes visible   default: null
+ *
+ * ============================================================================
+ * PUBLIC API
+ * ============================================================================
+ *
+ *   player.play()      Unlock (if needed) and play the clip. Must be inside a
+ *                      gesture handler on first call. Rewinds and replays if
+ *                      called after the clip has already ended. Ignored while
+ *                      already playing, unlocking, or after destroy().
+ *
+ *   player.stop()      Pause and rewind to start. No-op after destroy().
+ *
+ *   player.destroy()   Remove visibilitychange listener, release Audio element.
+ *                      Call on SPA component unmount. All subsequent calls are
+ *                      safe no-ops.
+ *
+ *   player.isPlaying   {boolean}  True while the clip is actively playing.
+ *
+ * ── STATIC UTILITY ──────────────────────────────────────────────────────────
+ *
+ *   OpenAudio.canPlay(type)  Returns true if the browser can likely play the
+ *                            given MIME type. Wraps canPlayType().
+ *
+ * ============================================================================
  */
 
-class OpenAudio {
+// Silent 1-second MP3 — used to unlock the shared Audio element within the
+// gesture context before the real clip is played.
+const _OPENAUDIO_SILENT_MP3 =
+  'data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsgU291bmQgRWZmZWN0cyBMaWJyYXJ5Ly8v' +
+  'VFNTTQAAAAALAAADAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAA' +
+  'AP////8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP//' +
+  '//8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP////8AAAAAAAAAAP////8A' +
+  'AAAAAAAAAP////8=';
 
-  // ── Silent 1-second MP3 used only to unlock the audio element ──────────────
-  static #SILENT_MP3 =
-    'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAA' +
-    'AAAAAP/7kGQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADhgCg' +
-    'oKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKD///////' +
-    '///////////////////////////////////////////////////////////AAAAAExhdmM1OC41' +
-    'NQAAAAAAAAAAAAAAA//uQZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWluZwAAAA8A' +
-    'AAAkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAv' +
-    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
+class OpenAudio {
 
   // ── Private fields ──────────────────────────────────────────────────────────
   #src;
   #label;
   #volume;
   #audio;
+  #endedHandler;
+  #boundVisibility;
   #onPlay;
   #onEnd;
   #onHidden;
   #onVisible;
   #pauseOnHidden;
   #isUnlocking        = false;
+  #isDestroyed        = false;
   #pausedByVisibility = false;
-  #boundVisibility;
 
   /**
-   * @param {string} src                              - Path or data URI for your audio file.
-   * @param {object} [options]
-   * @param {number}   [options.volume=1.0]           - Playback volume 0.0–1.0.
-   * @param {string}   [options.label='']             - Name shown in console warnings.
-   * @param {boolean}  [options.pauseOnHidden=false]  - Pause when tab is hidden;
-   *                                                    resume when it returns.
-   * @param {Function} [options.onPlay]               - Called when playback starts.
-   * @param {Function} [options.onEnd]                - Called when playback ends naturally.
-   * @param {Function} [options.onHidden]             - Called when the tab becomes hidden.
-   * @param {Function} [options.onVisible]            - Called when the tab becomes visible.
+   * @param {string}   src
+   * @param {Object}   [options={}]
+   * @param {number}   [options.volume=1.0]
+   * @param {string}   [options.label='']
+   * @param {boolean}  [options.pauseOnHidden=false]
+   * @param {Function} [options.onPlay]
+   * @param {Function} [options.onEnd]
+   * @param {Function} [options.onHidden]
+   * @param {Function} [options.onVisible]
    */
   constructor(src, options = {}) {
-    if (!src || typeof src !== 'string') {
+    if (!src || typeof src !== 'string' || !src.trim()) {
       throw new TypeError('OpenAudio: src must be a non-empty string.');
     }
 
-    const {
-      volume        = 1.0,
-      label         = '',
-      pauseOnHidden = false,
-      onPlay        = null,
-      onEnd         = null,
-      onHidden      = null,
-      onVisible     = null,
-    } = options;
-
     this.#src           = src;
-    this.#label         = label || src;
-    this.#volume        = Math.min(1, Math.max(0, volume));
-    this.#pauseOnHidden = pauseOnHidden;
-    this.#onPlay        = onPlay;
-    this.#onEnd         = onEnd;
-    this.#onHidden      = onHidden;
-    this.#onVisible     = onVisible;
+    this.#label         = options.label || src;
+    this.#volume        = Math.min(1, Math.max(0, options.volume ?? 1.0));
+    this.#pauseOnHidden = options.pauseOnHidden ?? false;
+    this.#onPlay        = options.onPlay    || null;
+    this.#onEnd         = options.onEnd     || null;
+    this.#onHidden      = options.onHidden  || null;
+    this.#onVisible     = options.onVisible || null;
+
+    this.isPlaying = false;
 
     // Single shared Audio element — created once, reused on replay.
+    // Pre-loading the real src here so the browser can begin buffering
+    // before play() is called.
     this.#audio         = new Audio();
     this.#audio.volume  = this.#volume;
     this.#audio.preload = 'auto';
     this.#audio.src     = this.#src;
 
-    this.#audio.addEventListener('ended', () => {
+    // Store handler reference so destroy() can remove it cleanly.
+    this.#endedHandler = () => {
+      if (this.#isDestroyed) return;
       this.isPlaying = false;
       try { if (this.#onEnd) this.#onEnd(); } catch (e) {
         console.warn(`OpenAudio: onEnd callback error (${this.#label}):`, e);
       }
-    });
+    };
+    this.#audio.addEventListener('ended', this.#endedHandler);
 
-    // Store the bound reference so destroy() removes the exact same function.
-    // An inline arrow would create a new reference that removeEventListener
-    // could never match — causing stale listeners to accumulate in SPAs.
+    // Stored bound reference — an inline arrow cannot be removed by
+    // removeEventListener, causing stale listeners to accumulate in SPAs.
     this.#boundVisibility = this.#onVisibilityChange.bind(this);
     document.addEventListener('visibilitychange', this.#boundVisibility);
   }
 
-  // ── Public state ────────────────────────────────────────────────────────────
-
-  /** True while the clip is actively playing. */
-  isPlaying = false;
-
-  // ── Public API ──────────────────────────────────────────────────────────────
+  // ── PUBLIC API ──────────────────────────────────────────────────────────────
 
   /**
-   * Unlocks the audio element (if needed) then plays the clip.
-   * Must be called synchronously inside a user-gesture event handler on first use.
+   * Unlock the Audio element (if needed) and play the clip.
    *
-   * Safe to call repeatedly — ignored while already playing or unlocking.
-   * Calling play() after the clip has ended rewinds and replays from the start.
+   * Must be called synchronously inside a user gesture on first use.
+   * Rewinds and replays from the start if the clip has already ended.
+   * Ignored while already playing, while the unlock is in progress,
+   * or after destroy() has been called.
    */
   play() {
-    if (this.isPlaying || this.#isUnlocking) return;
+    if (this.#isDestroyed || this.isPlaying || this.#isUnlocking) return;
 
     this.#isUnlocking = true;
 
-    // Play the silent MP3 synchronously within the gesture context.
-    // This unlocks the audio element for subsequent .play() calls on iOS/Chrome.
-    const unlock = new Audio(OpenAudio.#SILENT_MP3);
-    unlock.play().then(() => {
-      this.#isUnlocking = false;
-      this.#playClip();
-    }).catch(() => {
-      // Unlock failed — still attempt playback (desktop may not need it).
-      this.#isUnlocking = false;
-      this.#playClip();
-    });
+    // Unlock the SHARED element by playing the silent MP3 on it directly.
+    // A throwaway new Audio() would bless the wrong element and leave #audio
+    // blocked on iOS Safari.
+    this.#audio.src    = _OPENAUDIO_SILENT_MP3;
+    this.#audio.volume = 0;
+    this.#audio.play()
+      .then(() => {
+        this.#isUnlocking = false;
+        if (this.#isDestroyed) return;
+        // Restore the real src and volume, then play.
+        this.#audio.src    = this.#src;
+        this.#audio.volume = this.#volume;
+        this.#playClip();
+      })
+      .catch(err => {
+        this.#isUnlocking = false;
+        if (this.#isDestroyed) return;
+        if (err.name === 'NotAllowedError') {
+          console.warn(
+            `OpenAudio: autoplay blocked during unlock for "${this.#label}". ` +
+            'play() must be called synchronously inside a user gesture handler ' +
+            '(click / keydown / touchstart).'
+          );
+        }
+        // AbortError or other — leave state clean, do not attempt playback.
+      });
   }
 
   /**
-   * Stops playback and rewinds to the start.
+   * Stop playback and rewind to start. No-op after destroy().
    */
   stop() {
+    if (this.#isDestroyed) return;
     this.#audio.pause();
-    this.#audio.currentTime = 0;
-    this.isPlaying          = false;
+    this.#audio.currentTime  = 0;
+    this.isPlaying           = false;
     this.#pausedByVisibility = false;
   }
 
   /**
-   * Removes the visibilitychange listener and releases the Audio element.
-   * Call on SPA component unmount. Do not call any other methods after destroy().
+   * Remove the visibilitychange listener and release the Audio element.
+   * Call on SPA component unmount. All subsequent method calls are safe no-ops.
    */
   destroy() {
+    if (this.#isDestroyed) return;
+    this.#isDestroyed = true;
+    this.#audio.pause();
+    this.#audio.removeEventListener('ended', this.#endedHandler);
     document.removeEventListener('visibilitychange', this.#boundVisibility);
-    this.stop();
     this.#audio.src = '';
     this.#audio     = null;
   }
 
   /**
-   * Returns true if the browser reports it can probably or maybe play the
-   * given MIME type. Use before constructing to avoid silent format failures.
-   *
-   * @param {string} type  e.g. 'audio/ogg', 'audio/wav', 'audio/mpeg'
+   * Check whether the browser can likely play a given audio MIME type.
+   * @param  {string}  type  e.g. 'audio/mpeg', 'audio/ogg', 'audio/wav'
    * @returns {boolean}
    */
   static canPlay(type) {
-    const result = new Audio().canPlayType(type);
-    return result === 'probably' || result === 'maybe';
+    if (typeof type !== 'string' || !type.trim()) return false;
+    return new Audio().canPlayType(type) !== '';
   }
 
-  // ── Private ─────────────────────────────────────────────────────────────────
+  // ── PRIVATE ─────────────────────────────────────────────────────────────────
 
   /**
-   * Handles visibilitychange events.
+   * Handles visibilitychange events for background tab detection.
    *
-   * On hide:
-   *   - Fires onHidden callback.
-   *   - If pauseOnHidden is true and the clip is playing, pauses it and sets
-   *     #pausedByVisibility so the resume path knows to restore playback.
-   *
-   * On show:
-   *   - Fires onVisible callback.
-   *   - If pauseOnHidden is true and #pausedByVisibility is set, resumes
-   *     playback from the same position.
+   * On hide: fires onHidden; pauses if pauseOnHidden is true and clip is playing.
+   * On show: fires onVisible; resumes if pauseOnHidden is true and clip was
+   *          paused by this handler (#pausedByVisibility).
    */
   #onVisibilityChange() {
-    if (document.visibilityState === 'hidden') {
+    if (this.#isDestroyed || !this.#audio) return;
 
+    if (document.visibilityState === 'hidden') {
       try { if (this.#onHidden) this.#onHidden(); } catch (e) {
         console.warn(`OpenAudio: onHidden callback error (${this.#label}):`, e);
       }
-
       if (this.#pauseOnHidden && this.isPlaying) {
         this.#audio.pause();
+        this.isPlaying           = false;
         this.#pausedByVisibility = true;
       }
 
     } else if (document.visibilityState === 'visible') {
-
       try { if (this.#onVisible) this.#onVisible(); } catch (e) {
         console.warn(`OpenAudio: onVisible callback error (${this.#label}):`, e);
       }
-
       if (this.#pauseOnHidden && this.#pausedByVisibility) {
         this.#pausedByVisibility = false;
-        this.#audio.play().catch(err => {
-          if (err.name === 'AbortError') return;
-          console.warn(
-            `OpenAudio: resume after visibility restore failed for "${this.#label}".\nError:`, err
-          );
-        });
+        this.#audio.play()
+          .then(() => { this.isPlaying = true; })
+          .catch(err => {
+            if (err.name !== 'AbortError') {
+              console.warn(
+                `OpenAudio: resume after visibility restore failed for "${this.#label}".\nError:`, err
+              );
+            }
+          });
       }
     }
   }
 
+  /**
+   * Play the real clip on the already-unlocked shared Audio element.
+   */
   #playClip() {
-    // Rewind in case it was played before.
+    if (this.#isDestroyed) return;
+
     this.#audio.currentTime  = 0;
     this.#audio.volume       = this.#volume;
     this.#pausedByVisibility = false;
 
-    this.#audio.play().then(() => {
-      this.isPlaying = true;
-      try { if (this.#onPlay) this.#onPlay(); } catch (e) {
-        console.warn(`OpenAudio: onPlay callback error (${this.#label}):`, e);
-      }
-    }).catch(err => {
-      if (err.name === 'AbortError') return;
-
-      if (err.name === 'NotAllowedError') {
-        console.warn(
-          `OpenAudio: play() blocked by autoplay policy for "${this.#label}". ` +
-          `Call play() again inside a user gesture.`
-        );
-      } else {
-        console.warn(`OpenAudio: play() failed for "${this.#label}".\nError:`, err);
-      }
-    });
+    this.#audio.play()
+      .then(() => {
+        if (this.#isDestroyed) { this.#audio?.pause(); return; }
+        this.isPlaying = true;
+        try { if (this.#onPlay) this.#onPlay(); } catch (e) {
+          console.warn(`OpenAudio: onPlay callback error (${this.#label}):`, e);
+        }
+      })
+      .catch(err => {
+        if (err.name === 'AbortError' || this.#isDestroyed) return;
+        if (err.name === 'NotAllowedError') {
+          console.warn(
+            `OpenAudio: play() blocked by autoplay policy for "${this.#label}". ` +
+            'Call play() again inside a user gesture.'
+          );
+        } else {
+          console.warn(`OpenAudio: play() failed for "${this.#label}".\nError:`, err);
+        }
+      });
   }
 }
 
@@ -325,12 +389,12 @@ const player = new OpenAudio('audio/chime.mp3');
 document.getElementById('btn').addEventListener('click', () => player.play());
 
 
-// ── With background tab options ───────────────────────────────────────────────
+// ── With all options ──────────────────────────────────────────────────────────
 
 const player = new OpenAudio('audio/chime.mp3', {
   volume:        0.8,
   label:         'Chime',
-  pauseOnHidden: true,                          // pause when tab loses focus
+  pauseOnHidden: true,
   onPlay:        () => console.log('playing'),
   onEnd:         () => console.log('done'),
   onHidden:      () => console.log('tab hidden — audio paused'),
@@ -340,7 +404,7 @@ const player = new OpenAudio('audio/chime.mp3', {
 
 // ── Callbacks only, no auto-pause ─────────────────────────────────────────────
 
-// Audio keeps playing in background; only UI is updated.
+// Audio keeps playing in background; UI is updated via callbacks only.
 const player = new OpenAudio('audio/ambient.mp3', {
   onHidden:  () => updateUI('background'),
   onVisible: () => updateUI('foreground'),
@@ -356,7 +420,7 @@ document.addEventListener('touchstart', () => player.play(), { once: true });
 
 // ── Replay ────────────────────────────────────────────────────────────────────
 
-// play() rewinds and replays if called again after the clip has ended.
+// play() rewinds and replays if the clip has already ended.
 document.getElementById('replay-btn').addEventListener('click', () => player.play());
 
 
@@ -377,7 +441,7 @@ if (!OpenAudio.canPlay('audio/ogg')) {
 // React:
 // useEffect(() => {
 //   const player = new OpenAudio('audio/chime.mp3', { pauseOnHidden: true });
-//   return () => player.destroy();  // removes visibilitychange listener on unmount
+//   return () => player.destroy();
 // }, []);
 
 // Vue:
