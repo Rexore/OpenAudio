@@ -1,7 +1,7 @@
 /**
  * @file        OpenAudio_s.js
  * @author      Rexore
- * @version     1.1.0
+ * @version     1.3.0
  * @license     Apache-2.0
  *
  * Copyright 2025 Rexore
@@ -31,7 +31,7 @@
  *   - Silent MP3 unlock on the shared Audio element: satisfies autoplay policy
  *   - #isUnlocking guard: prevents duplicate unlock attempts
  *   - Callbacks: onPlay, onEnd, onComplete — all wrapped in try/catch
- *   - destroy(): removes listeners; safe for SPA teardown
+ *   - destroy(): removes listeners and clears timers; safe for SPA teardown
  *   - canPlay() static: check browser format support before constructing
  *
  * ============================================================================
@@ -68,6 +68,44 @@
  * ============================================================================
  * CHANGELOG
  * ============================================================================
+ *
+ * 1.3.0
+ *   - #playCancelled flag: stop() and reset() now plant a cancellation token
+ *     that the in-flight silent-MP3 unlock .then() checks before calling
+ *     #playClip(). Previously, calling reset() (or stop()) during the ~50–200ms
+ *     unlock window was ignored: .then() would fire unconditionally and start
+ *     the first clip regardless. The fix mirrors the pattern introduced in
+ *     OpenAudio.js 1.3.0.
+ *   - play() doc comment updated to explain that #isStarted becomes true inside
+ *     #playClip() (after the unlock), not before. This is a deliberate design
+ *     choice that differs from OpenAudio_r.js, which sets #isStarted before the
+ *     unlock. Both approaches are valid; the difference is documented so readers
+ *     of both files are not surprised.
+ *   - Usage example: goto(prev) now uses Math.max(0, index - 1) guard,
+ *     matching the published API docs and avoiding a spurious out-of-range
+ *     console.warn when the user is already on the first clip.
+ *
+ * 1.2.0
+ *   - isPlaying and isStarted are now private fields (#isPlaying, #isStarted)
+ *     exposed via read-only getters. Previously they were plain public
+ *     properties, allowing callers to silently corrupt the state machine.
+ *   - #isPlaying and #isStarted are now set true synchronously before the
+ *     #audio.play() call in #playClip(), closing the double-play race window
+ *     where rapid next()/goto() calls could bypass guards and abort a clip
+ *     mid-start. #isPlaying is reverted in .catch() on real failures.
+ *   - #advanceTimer: the auto-advance setTimeout handle is now stored and
+ *     cleared by stop(), reset(), and destroy(). Previously stop() or reset()
+ *     called during the advance delay would not cancel the pending next(),
+ *     causing the next clip to start after an explicit stop.
+ *   - resume(): #isPlaying now set synchronously before #audio.play(), then
+ *     reverted in .catch(). Previously the .then() could overwrite a
+ *     concurrent stop()'s isPlaying = false.
+ *   - destroy() now uses removeAttribute('src') + load() per the WHATWG
+ *     HTMLMediaElement resource-release spec, replacing src = ''.
+ *   - getCurrentClip() now returns a shallow copy ({ ...clip }) instead of a
+ *     live reference. getClips() now deep-copies inner objects. Prevents
+ *     callers from mutating the internal playlist.
+ *   - Removed unreachable this.#audio?.pause() from #playClip() .then().
  *
  * 1.1.0
  *   - Unlock now plays the silent MP3 on the shared #audio element rather than
@@ -127,19 +165,20 @@
  *
  *   player.pause()             Pause at current position.
  *   player.resume()            Resume from paused position.
- *   player.stop()              Pause and rewind current clip to start.
+ *   player.stop()              Pause, rewind current clip, and cancel any pending
+ *                              auto-advance timer.
  *   player.reset()             Stop and return sequence to clip 0.
  *
- *   player.destroy()           Stop, remove event listeners, release Audio element.
- *                              Call on SPA component unmount.
+ *   player.destroy()           Stop, clear timers, remove event listeners, release
+ *                              Audio element. Call on SPA component unmount.
  *
- *   player.getCurrentClip()    Returns current clip object { src, label }.
+ *   player.getCurrentClip()    Returns a copy of the current clip { src, label }.
  *   player.getCurrentIndex()   Returns current clip index (number).
  *   player.getClipCount()      Returns total number of clips (number).
- *   player.getClips()          Returns defensive copy of clips array.
+ *   player.getClips()          Returns a deep copy of the clips array.
  *
- *   player.isPlaying           {boolean}  True while a clip is actively playing.
- *   player.isStarted           {boolean}  True after first successful play().
+ *   player.isPlaying           {boolean}  Read-only. True while a clip is playing.
+ *   player.isStarted           {boolean}  Read-only. True after first play().
  *
  * ── STATIC UTILITY ──────────────────────────────────────────────────────────
  *
@@ -164,16 +203,27 @@ class SequentialAudio {
   #clips;
   #currentIndex;
   #audio;
-  #endedHandler;   // stored reference for removeEventListener in destroy()
+  #endedHandler;    // stored reference for removeEventListener in destroy()
   #isUnlocking;
   #isDestroyed;
   #autoAdvance;
   #advanceDelay;
+  // Stored handle for the auto-advance setTimeout — cleared by stop(),
+  // reset(), and destroy() to prevent phantom next() calls after an explicit
+  // stop during the advance delay window.
+  #advanceTimer;
   #loop;
   #volume;
   #onPlay;
   #onEnd;
   #onComplete;
+  // Backing fields for the read-only isPlaying / isStarted getters.
+  #isPlaying;
+  #isStarted;
+  // Written by stop()/reset() and read by the async unlock .then() to prevent
+  // #playClip() from running after an explicit stop during the unlock window.
+  // Mirrors the pattern used in OpenAudio.js (#playCancelled).
+  #playCancelled = false;
 
   /**
    * @param {Array<{ src: string, label?: string }>} clips
@@ -199,6 +249,9 @@ class SequentialAudio {
     this.#currentIndex = 0;
     this.#isUnlocking  = false;
     this.#isDestroyed  = false;
+    this.#advanceTimer = null;
+    this.#isPlaying    = false;
+    this.#isStarted    = false;
 
     this.#autoAdvance  = options.autoAdvance  ?? false;
     this.#advanceDelay = options.advanceDelay ?? 0.5;
@@ -207,9 +260,6 @@ class SequentialAudio {
     this.#onPlay       = options.onPlay       || null;
     this.#onEnd        = options.onEnd        || null;
     this.#onComplete   = options.onComplete   || null;
-
-    this.isPlaying = false;
-    this.isStarted = false;
 
     // Single shared Audio element — created here so mobile browsers keep it
     // within the gesture activation context for all subsequent play() calls.
@@ -220,13 +270,15 @@ class SequentialAudio {
     // Store the handler reference so destroy() can remove it cleanly.
     this.#endedHandler = () => {
       if (this.#isDestroyed) return;
-      this.isPlaying = false;
+      this.#isPlaying = false;
       const clip = this.#clips[this.#currentIndex];
-      try { if (this.#onEnd) this.#onEnd(clip); } catch (e) {
+      try { if (this.#onEnd) this.#onEnd({ ...clip }); } catch (e) {
         console.warn(`SequentialAudio: onEnd callback error (${clip.label}):`, e);
       }
       if (this.#autoAdvance) {
-        setTimeout(() => {
+        // Store handle so stop()/reset()/destroy() can cancel before it fires.
+        this.#advanceTimer = setTimeout(() => {
+          this.#advanceTimer = null;
           if (!this.#isDestroyed) this.next();
         }, this.#advanceDelay * 1000);
       }
@@ -237,15 +289,30 @@ class SequentialAudio {
 
   // ── PUBLIC API ──────────────────────────────────────────────────────────────
 
+  /** @returns {boolean} True while a clip is actively playing. Read-only. */
+  get isPlaying() { return this.#isPlaying; }
+
+  /** @returns {boolean} True after the first successful play(). Read-only. */
+  get isStarted() { return this.#isStarted; }
+
   /**
    * Unlock the Audio element and play the current clip.
    *
    * Must be called synchronously inside a user gesture on first use.
    * Ignored if the sequence has already started (isStarted), is currently
    * playing, or the unlock is already in progress.
+   *
+   * Design note (D3): #isStarted becomes true inside #playClip(), which runs
+   * after the unlock resolves. This differs from OpenAudio_r.js, which sets
+   * #isStarted = true at the top of start() before the unlock. Both choices
+   * are valid; the difference is intentional and documented here to avoid
+   * confusion when reading both files side-by-side.
    */
   play() {
-    if (this.#isDestroyed || this.isStarted || this.isPlaying || this.#isUnlocking) return;
+    if (this.#isDestroyed || this.#isStarted || this.#isPlaying || this.#isUnlocking) return;
+
+    // Reset the cancellation token on every fresh play() invocation.
+    this.#playCancelled = false;
 
     this.#isUnlocking = true;
 
@@ -256,7 +323,8 @@ class SequentialAudio {
     this.#audio.play()
       .then(() => {
         this.#isUnlocking = false;
-        if (this.#isDestroyed) return;
+        // Honour a stop() or reset() call that arrived during the unlock.
+        if (this.#isDestroyed || this.#playCancelled) return;
         this.#audio.volume = this.#volume;
         this.#playClip();
       })
@@ -270,7 +338,7 @@ class SequentialAudio {
             '(click / keydown / touchstart).'
           );
         }
-        // AbortError or other — do not attempt to play; leave state clean
+        // AbortError or other — do not attempt to play; leave state clean.
       });
   }
 
@@ -280,7 +348,7 @@ class SequentialAudio {
    * At end of sequence: loops if loop:true, otherwise fires onComplete.
    */
   next() {
-    if (this.#isDestroyed || !this.isStarted) return;
+    if (this.#isDestroyed || !this.#isStarted) return;
 
     this.#currentIndex++;
 
@@ -289,9 +357,9 @@ class SequentialAudio {
         this.#currentIndex = 0;
         this.#playClip();
       } else {
-        // Stay on the last clip index so getCurrentClip() remains valid
+        // Stay on the last clip index so getCurrentClip() remains valid.
         this.#currentIndex = this.#clips.length - 1;
-        this.isPlaying = false;
+        this.#isPlaying    = false;
         try { if (this.#onComplete) this.#onComplete(); } catch (e) {
           console.warn('SequentialAudio: onComplete callback error:', e);
         }
@@ -307,7 +375,7 @@ class SequentialAudio {
    * @param {number} index
    */
   goto(index) {
-    if (this.#isDestroyed || !this.isStarted) return;
+    if (this.#isDestroyed || !this.#isStarted) return;
     if (index < 0 || index >= this.#clips.length) {
       console.warn(`SequentialAudio: goto() index ${index} out of range [0, ${this.#clips.length - 1}].`);
       return;
@@ -321,7 +389,7 @@ class SequentialAudio {
    * @param {string} label
    */
   gotoLabel(label) {
-    if (this.#isDestroyed || !this.isStarted) return;
+    if (this.#isDestroyed || !this.#isStarted) return;
     const index = this.#clips.findIndex(c => c.label === label);
     if (index === -1) {
       console.warn(`SequentialAudio: no clip with label "${label}".`);
@@ -334,19 +402,25 @@ class SequentialAudio {
    * Pause at current playback position.
    */
   pause() {
-    if (this.#isDestroyed || !this.isStarted) return;
+    if (this.#isDestroyed || !this.#isStarted) return;
     this.#audio.pause();
-    this.isPlaying = false;
+    this.#isPlaying = false;
   }
 
   /**
    * Resume from paused position. No-op if not paused.
+   *
+   * #isPlaying is set true synchronously before the Promise, then reverted in
+   * .catch() if play() fails — closes the race where a concurrent stop() call
+   * in the .then() window would leave isPlaying incorrectly true.
    */
   resume() {
-    if (this.#isDestroyed || !this.isStarted || !this.#audio.paused) return;
+    if (this.#isDestroyed || !this.#isStarted || !this.#audio.paused) return;
+    // Set before the async boundary; revert in .catch() on failure.
+    this.#isPlaying = true;
     this.#audio.play()
-      .then(() => { this.isPlaying = true; })
       .catch(err => {
+        this.#isPlaying = false;
         if (err.name !== 'AbortError') {
           console.warn('SequentialAudio: resume() failed:', err);
         }
@@ -355,44 +429,67 @@ class SequentialAudio {
 
   /**
    * Pause and rewind current clip to its start.
+   * Also cancels any pending auto-advance timer so the next clip does not
+   * start after stop() returns. Sets #playCancelled so that any in-flight
+   * silent-MP3 unlock will not proceed to #playClip() when it resolves.
    */
   stop() {
     if (this.#isDestroyed) return;
+    // Signal the async unlock not to proceed if it is still in flight.
+    this.#playCancelled = true;
+    // Cancel any pending auto-advance before pausing.
+    if (this.#advanceTimer !== null) {
+      clearTimeout(this.#advanceTimer);
+      this.#advanceTimer = null;
+    }
     this.#audio.pause();
     this.#audio.currentTime = 0;
-    this.isPlaying = false;
+    this.#isPlaying         = false;
   }
 
   /**
    * Stop and reset sequence to clip 0.
    * isStarted is cleared — next play() will re-run the unlock.
+   * Also cancels any pending auto-advance timer.
    */
   reset() {
     if (this.#isDestroyed) return;
-    this.stop();
+    this.stop();                    // stop() clears #advanceTimer
     this.#currentIndex = 0;
-    this.isStarted = false;
+    this.#isStarted    = false;
   }
 
   /**
    * Release the Audio element and remove all event listeners.
+   * Cancels any pending auto-advance timer.
    * Call this on SPA component unmount to prevent memory leaks.
    * All method calls after destroy() are safe no-ops.
    */
   destroy() {
     if (this.#isDestroyed) return;
     this.#isDestroyed = true;
+    // Cancel any pending auto-advance before teardown.
+    if (this.#advanceTimer !== null) {
+      clearTimeout(this.#advanceTimer);
+      this.#advanceTimer = null;
+    }
     this.#audio.pause();
     this.#audio.removeEventListener('ended', this.#endedHandler);
-    this.#audio.src = '';
+    // WHATWG-specified resource-release sequence: removeAttribute('src') +
+    // load() aborts any in-progress network fetch and resets the media element
+    // state machine cleanly, avoiding the spurious 'error' events that
+    // src = '' can fire on some browsers.
+    this.#audio.removeAttribute('src');
+    this.#audio.load();
     this.#audio = null;
   }
 
   /**
-   * Returns the current clip object { src, label }.
+   * Returns a copy of the current clip object { src, label }.
+   * A copy is returned to prevent callers from mutating the internal playlist.
    * @returns {{ src: string, label: string }}
    */
-  getCurrentClip() { return this.#clips[this.#currentIndex]; }
+  getCurrentClip() { return { ...this.#clips[this.#currentIndex] }; }
 
   /** @returns {number} */
   getCurrentIndex() { return this.#currentIndex; }
@@ -400,8 +497,12 @@ class SequentialAudio {
   /** @returns {number} */
   getClipCount() { return this.#clips.length; }
 
-  /** @returns {Array} Defensive copy. */
-  getClips() { return [...this.#clips]; }
+  /**
+   * Returns a deep copy of the clips array.
+   * Inner objects are copied to prevent callers from mutating the playlist.
+   * @returns {Array<{ src: string, label: string }>}
+   */
+  getClips() { return this.#clips.map(c => ({ ...c })); }
 
   /**
    * Check whether the browser can likely play a given audio MIME type.
@@ -418,6 +519,11 @@ class SequentialAudio {
   /**
    * Load and play the clip at #currentIndex on the shared Audio element.
    * Called only after the element has been unlocked via play().
+   *
+   * #isPlaying and #isStarted are set true synchronously before #audio.play()
+   * to close the race window where a rapid next()/goto() call between the
+   * .play() call and its .then() resolution could bypass guards and attempt
+   * concurrent playback. #isPlaying is reverted in .catch() on real failures.
    */
   #playClip() {
     if (this.#isDestroyed) return;
@@ -428,16 +534,19 @@ class SequentialAudio {
     this.#audio.currentTime = 0;
     this.#audio.volume      = this.#volume;
 
+    // Set before the async boundary to close the double-play race window.
+    this.#isPlaying = true;
+    this.#isStarted = true;
+
     this.#audio.play()
       .then(() => {
-        if (this.#isDestroyed) { this.#audio?.pause(); return; }
-        this.isStarted = true;
-        this.isPlaying = true;
-        try { if (this.#onPlay) this.#onPlay(clip); } catch (e) {
+        if (this.#isDestroyed) return;
+        try { if (this.#onPlay) this.#onPlay({ ...clip }); } catch (e) {
           console.warn(`SequentialAudio: onPlay callback error (${clip.label}):`, e);
         }
       })
       .catch(err => {
+        this.#isPlaying = false;   // revert the optimistic flag on failure
         if (err.name === 'AbortError' || this.#isDestroyed) return;
         if (err.name === 'NotAllowedError') {
           console.warn(
@@ -496,7 +605,7 @@ const tour = new SequentialAudio([
 document.addEventListener('click', () => tour.play(), { once: true });
 document.getElementById('next-btn').addEventListener('click', () => tour.next());
 document.getElementById('prev-btn').addEventListener('click', () => {
-  tour.goto(tour.getCurrentIndex() - 1);
+  tour.goto(Math.max(0, tour.getCurrentIndex() - 1));
 });
 
 
