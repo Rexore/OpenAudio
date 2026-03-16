@@ -12,7 +12,7 @@ npm i openaudio-suite
 ```
 
 > ⚠️ **Alpha Software**
-> The entire OpenAudio suite is currently in public alpha. APIs may change, bugs are expected, and production use is not recommended. `OpenAudio_r.js` is the most tested library; `OpenAudio_s.js` and `OpenAudio.js` have received limited testing. Use at your own risk and please report issues.
+> The entire OpenAudio suite is currently in public alpha. APIs may change, bugs are expected, and production use is not recommended, without full UAT. `OpenAudio_r.js` is the most tested library; `OpenAudio_s.js` and `OpenAudio.js` have received limited testing. Use at your own risk and please report issues.
 
 ---
 
