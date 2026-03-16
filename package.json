@@ -1,34 +1,21 @@
 {
   "name": "openaudio-suite",
-  "version": "2.6.1",
-  "description": "Zero-dependency audio utilities for web browsers. Three libraries: OpenAudio_r.js (randomized scheduler), OpenAudio_s.js (sequential player), OpenAudio.js v1.1.0 (single-clip player with background tab detection). Pure HTML5 Audio API. GPL-3.0-or-later.",
+  "version": "2.6.2",
+  "description": "Zero-dependency audio utilities for web browsers. Three libraries: OpenAudio_r.js (randomized scheduler), OpenAudio_s.js (sequential player), OpenAudio.js (single-clip player with background tab detection). Pure HTML5 Audio API. Apache-2.0.",
   "main": "OpenAudio_r.js",
-  "exports": {
-    "import": {
-      ".": "./OpenAudio_r.js",
-      "./r": "./OpenAudio_r.js",
-      "./randomized": "./OpenAudio_r.js",
-      "./scheduler": "./OpenAudio_r.js",
-      "./s": "./OpenAudio_s.js",
-      "./sequential": "./OpenAudio_s.js",
-      "./playlist": "./OpenAudio_s.js",
-      "./single": "./OpenAudio.js",
-      "./player": "./OpenAudio.js"
-    },
-    "require": {
-      ".": "./OpenAudio_r.js",
-      "./r": "./OpenAudio_r.js",
-      "./randomized": "./OpenAudio_r.js",
-      "./scheduler": "./OpenAudio_r.js",
-      "./s": "./OpenAudio_s.js",
-      "./sequential": "./OpenAudio_s.js",
-      "./playlist": "./OpenAudio_s.js",
-      "./single": "./OpenAudio.js",
-      "./player": "./OpenAudio.js"
-    }
-  },
   "type": "module",
-"license": "Apache-2.0",
+  "exports": {
+    ".": "./OpenAudio_r.js",
+    "./r": "./OpenAudio_r.js",
+    "./randomized": "./OpenAudio_r.js",
+    "./scheduler": "./OpenAudio_r.js",
+    "./s": "./OpenAudio_s.js",
+    "./sequential": "./OpenAudio_s.js",
+    "./playlist": "./OpenAudio_s.js",
+    "./single": "./OpenAudio.js",
+    "./player": "./OpenAudio.js"
+  },
+  "license": "Apache-2.0",
   "author": {
     "name": "Rexore",
     "url": "https://github.com/Rexore"
@@ -55,7 +42,10 @@
     "no-dependencies",
     "zero-dependencies",
     "browser",
-    "html5-audio"
+    "html5-audio",
+    "vanilla-js",
+    "sound",
+    "autoplay"
   ],
   "files": [
     "OpenAudio_r.js",
