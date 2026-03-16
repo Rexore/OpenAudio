@@ -91,7 +91,7 @@ document.getElementById('btn').addEventListener('click', () => player.play());
 - ⏸️ **Smart pause/resume** - Optional pause on background, resume on return
 - 📱 **Same autoplay unlock** - Silent MP3 unlock as others
 
-**Version:** 1.1.0 | **File:** `OpenAudio.js` (~5 KB, 2 KB gzipped)
+**Version:** 1.1.1 | **File:** `OpenAudio.js` (~5 KB, 2 KB gzipped)
 
 ---
 
@@ -160,9 +160,9 @@ import { SequentialAudio } from './OpenAudio_s.js';
 import { SingleAudio } from './OpenAudio.js';
 ```
 
-### Option 3: npm (when published)
+### Option 3: npm
 ```bash
-npm install openaudio-suite
+npm i openaudio-suite
 ```
 
 ```javascript
