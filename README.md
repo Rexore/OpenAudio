@@ -41,7 +41,7 @@ document.addEventListener('click', () => engine.start(), { once: true });
 * 🌙 **Background tab resilience** — Detects visibility changes, recalculates timing
 * 🎛️ **Lifecycle callbacks** — `onPlay`, `onEnd`, `onCycleReset`
 
-**Version:** 2.4.1 | **File:** `OpenAudio_r.js` (~9 KB, 3 KB gzipped)
+**Version:** 2.6.0 | **File:** `OpenAudio_r.js` (~9 KB, 3 KB gzipped)
 
 ---
 
@@ -70,7 +70,7 @@ document.getElementById('next-btn').addEventListener('click', () => player.next(
 * ⏸️ **Play/pause/resume** — Full transport controls
 * 📊 **Progress tracking** — Know your current position in sequence
 
-**Version:** 1.1.0 | **File:** `OpenAudio_s.js` (~5 KB, 2 KB gzipped)
+**Version:** 1.3.0 | **File:** `OpenAudio_s.js` (~5 KB, 2 KB gzipped)
 
 ---
 
@@ -94,13 +94,13 @@ document.getElementById('btn').addEventListener('click', () => player.play());
 **Key Features:**
 
 * ▶️ **One-shot playback** — Plays a single audio file once
-* 🔁 **Replayable** — Call `play()` again to replay from start
+* 🔁 **Replayable** — Call `play()` again to replay from start; preloaded data preserved on replay
 * ⏹️ **Stop control** — Pause and rewind mid-playback
 * 🔍 **Background tab detection** — Detects when tab loses/regains focus
 * ⏸️ **Smart pause/resume** — Optional pause on background, resume on return
-* 📱 **Same autoplay unlock** — Silent MP3 unlock as others
+* 📱 **Same autoplay unlock** — Silent MP3 unlock, performed only once per instance
 
-**Version:** 1.2.0 | **File:** `OpenAudio.js` (~5 KB, 2 KB gzipped)
+**Version:** 1.3.0 | **File:** `OpenAudio.js` (~5 KB, 2 KB gzipped)
 
 ---
 
@@ -117,6 +117,7 @@ document.getElementById('btn').addEventListener('click', () => player.play());
 | **Callbacks** | onPlay, onEnd, onCycleReset | onPlay, onEnd, onComplete | onPlay, onEnd, onHidden, onVisible |
 | **Pause/Resume** | ❌ No | ✅ Yes | ✅ Yes (pauseOnHidden) |
 | **Background Tab Detection** | ✅ Yes | ❌ No | ✅ Yes |
+| **isPlaying / isStarted** | ✅ Read-only | ✅ Read-only | ✅ Read-only |
 | **File Size** | ~9 KB | ~5 KB | ~5 KB |
 | **Use Case** | Ambient, randomized | Guided tours, tutorials, stories | UI sounds, notifications, game audio |
 
@@ -166,9 +167,9 @@ Q4: Do you need frame-perfect scheduling or effects?
 ### Option 2: ES6 Modules
 
 ```javascript
-import { AudioEngine }    from './OpenAudio_r.js';
+import { AudioEngine }     from './OpenAudio_r.js';
 import { SequentialAudio } from './OpenAudio_s.js';
-import { OpenAudio }      from './OpenAudio.js';
+import { OpenAudio }       from './OpenAudio.js';
 ```
 
 ### Option 3: npm
@@ -279,12 +280,15 @@ All three libraries require:
 ### OpenAudio_r.js (AudioEngine)
 
 ```javascript
-engine.start()          // Begin playback
-engine.stop()           // Pause
-engine.reset()          // Stop & reset cycle
-engine.setVolume(0.5)   // Set volume
-engine.addClip(clip)    // Add clip at runtime
-engine.destroy()        // Cleanup
+engine.start()          // Begin playback (no-op after destroy)
+engine.stop()           // Pause (no-op after destroy)
+engine.reset()          // Stop & reset cycle (no-op after destroy)
+engine.setVolume(0.5)   // Set volume (no-op after destroy)
+engine.addClip(clip)    // Add clip at runtime (no-op after destroy)
+engine.destroy()        // Cleanup — all subsequent calls are safe no-ops
+
+engine.isStarted        // boolean, read-only
+engine.isPlaying        // boolean, read-only
 ```
 
 See [OPENAUDIO_R.md](https://github.com/Rexore/OpenAudio/blob/main/docs/OPENAUDIO_R.md) for full API.
@@ -300,9 +304,12 @@ player.goto(index)         // Jump to clip by index
 player.gotoLabel(label)    // Jump to clip by label
 player.pause()             // Pause
 player.resume()            // Resume from pause
-player.stop()              // Stop & rewind
+player.stop()              // Stop, rewind, cancel pending auto-advance
 player.reset()             // Reset to start
-player.destroy()           // Cleanup
+player.destroy()           // Cleanup — all subsequent calls are safe no-ops
+
+player.isPlaying           // boolean, read-only
+player.isStarted           // boolean, read-only
 ```
 
 See [OPENAUDIO_S.md](https://github.com/Rexore/OpenAudio/blob/main/docs/OPENAUDIO_S.md) for full API.
@@ -312,9 +319,11 @@ See [OPENAUDIO_S.md](https://github.com/Rexore/OpenAudio/blob/main/docs/OPENAUDI
 ### OpenAudio.js (OpenAudio)
 
 ```javascript
-player.play()     // Play the clip
-player.stop()     // Stop & rewind
-player.destroy()  // Cleanup
+player.play()     // Play the clip (unlock once, direct play on replay)
+player.stop()     // Stop, rewind, cancel in-flight unlock
+player.destroy()  // Cleanup — all subsequent calls are safe no-ops
+
+player.isPlaying  // boolean, read-only
 ```
 
 See [OPENAUDIO.md](https://github.com/Rexore/OpenAudio/blob/main/docs/OPENAUDIO.md) for full API.
@@ -397,9 +406,9 @@ See [CHANGELOG.md](https://github.com/Rexore/OpenAudio/blob/main/CHANGELOG.md) f
 
 **Current Versions:**
 
-* OpenAudio_r.js: **2.4.1** (March 2026)
-* OpenAudio_s.js: **1.1.0** (March 2026)
-* OpenAudio.js:   **1.2.0** (March 2026)
+* OpenAudio_r.js: **2.6.0** (March 2026)
+* OpenAudio_s.js: **1.3.0** (March 2026)
+* OpenAudio.js:   **1.3.0** (March 2026)
 
 ---
 
