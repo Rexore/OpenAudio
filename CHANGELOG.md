@@ -2,41 +2,46 @@
 
 All notable changes to the OpenAudio suite are documented here.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
-
-## v2.5.0 – 2026-03-15
-### Improvements
-- Added consistent **semantic versioning** strategy across releases.
-- Added **package-lock.json** to support reproducible installs and GitHub Actions CI.
-- No changes to OpenAudio JS files; all improvements are tooling and release management.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
 ## OpenAudio.js
 
+### [1.2.0] — 2026-03-16
+
+#### Fixed
+- **Unlock now plays on the shared `#audio` element** — Previously the silent MP3 was played on a throwaway `new Audio()`, blessing the wrong element. On iOS Safari this caused `NotAllowedError` for every clip after the first. The shared element is now unlocked directly.
+- **`#isDestroyed` flag** — All public methods (`play`, `stop`, `destroy`) are safe no-ops after `destroy()` has been called, preventing throws on the nulled `#audio` element.
+- **Double-`destroy()` safe** — Calling `destroy()` more than once no longer throws.
+- **`ended` listener stored and removed** — `#endedHandler` is now stored as a named reference and removed in `destroy()`, preventing a callback-into-null race on teardown.
+- **`canPlay()` input guard** — Returns `false` for non-string or empty input rather than passing `undefined` to `canPlayType()`.
+
+---
+
 ### [1.1.0] — 2025-03-15
 
 #### Added
-- **Background tab detection** — Listens to Page Visibility API (`document.visibilitychange`)
-- **`pauseOnHidden` option** — Pause audio when tab hides, resume when tab returns
-- **`onHidden` callback** — Fires when tab becomes hidden
-- **`onVisible` callback** — Fires when tab becomes visible
-- **`#boundVisibility` bound listener** — Proper cleanup prevents stale listeners in SPAs
+- Background tab detection via Page Visibility API (`document.visibilitychange`)
+- `pauseOnHidden` option — pause audio when tab hides, resume when tab returns
+- `onHidden` callback — fires when tab becomes hidden
+- `onVisible` callback — fires when tab becomes visible
+- `#boundVisibility` bound listener — proper cleanup prevents stale listeners in SPAs
 
 #### Fixed
-- Stale visibilitychange listeners in SPA environments (React, Vue, Svelte, etc.)
+- Stale `visibilitychange` listeners in SPA environments (React, Vue, Svelte, etc.)
 - Listener cleanup in `destroy()` now removes the exact function reference
 
 #### Changed
 - Class renamed: `SingleAudio` → `OpenAudio` (matches filename)
-- Improved documentation with background tab behavior examples
+- Improved documentation with background tab behaviour examples
 
 ---
 
 ### [1.0.0] — 2025-01-15
 
 #### Added
-- Initial release: Single-clip, one-shot player
+- Initial release: single-clip, one-shot player
 - Silent MP3 unlock for autoplay policy compliance
 - `onPlay` and `onEnd` callbacks
 - `destroy()` method for SPA cleanup
@@ -47,147 +52,167 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## OpenAudio_s.js
 
+### [1.1.0] — 2026-03-16
+
+#### Fixed
+- **Unlock now plays on the shared `#audio` element** — Same root cause as `OpenAudio.js` 1.2.0. A throwaway `new Audio()` was used for the unlock, leaving `#audio` unblessed and causing `NotAllowedError` on iOS Safari for every clip after the first.
+- **`play()` guard extended** — Now checks `isStarted` in addition to `isPlaying` and `#isUnlocking`. Calling `play()` after a clip ended (when `isPlaying` is `false`) no longer triggered a redundant second unlock mid-sequence.
+- **`next()` / `goto()` / `gotoLabel()` guard** — All three now return immediately if `!isStarted`. Calling them before `play()` previously bypassed the unlock entirely and threw `NotAllowedError`.
+- **`pause()` / `resume()` guard** — Both now check `isStarted` before touching the Audio element, preventing silent state corruption before the sequence begins.
+- **`destroy()` teardown** — The `ended` listener is now removed via a stored `#endedHandler` reference before `#audio` is nulled, preventing a callback-into-null race on teardown.
+- **`#isDestroyed` flag** — All public methods are safe no-ops after `destroy()`.
+
+#### Added
+- `advanceDelay` option (default `0.5s`) — replaces the hardcoded 500ms gap between auto-advance clips. Configurable at construction time.
+
+---
+
 ### [1.0.0] — 2025-01-15
 
 #### Added
-- Initial release: Sequential playlist player
+- Initial release: sequential playlist player
 - Click-to-advance playback control
-- Jump to clip by index or label
+- Jump to clip by index (`goto()`) or label (`gotoLabel()`)
 - Pause/resume support
-- Progress tracking
+- Progress tracking (`getCurrentClip()`, `getCurrentIndex()`, `getClipCount()`)
 - Complete API documentation with usage patterns
 
 ---
 
 ## OpenAudio_r.js
 
+### [2.4.1] — 2026-03-16
+
+#### Changed
+- Licence changed from GPL-3.0-or-later to Apache-2.0 across the entire suite.
+
+---
+
 ### [2.4.0] — 2025-03-15
 
-### Added
-- **`#isUnlocking` flag** — Prevents duplicate unlock attempts when `start()` is called rapidly (spam-clicks). The unlock play() is async; without this flag, a race condition allowed multiple overlapping unlock sequences.
-- **`destroy()` method** — Removes the `visibilitychange` listener. Essential for SPAs (React, Vue, Svelte, etc.) where engine instances are created and destroyed across component lifecycles. Without it, stale listeners accumulate on `document` and defunct engines wake up on every tab-focus event.
-- **`AudioEngine.canPlay(type)` static method** — Wraps `HTMLAudioElement.canPlayType()` with a clean boolean return. Use to check browser support for `.ogg`, `.wav`, or `.flac` before constructing an engine, rather than discovering a silent failure at play() time.
-- **Callback resilience for `onCycleReset`** — Wrapped in try/catch, matching the existing resilience applied to `onPlay` and `onEnd`. A throwing `onCycleReset` can no longer stall the engine loop.
-- **Comprehensive documentation** — Added HTML5 AUDIO vs. WEB AUDIO API comparison, browser autoplay policy deep-dive, background tab throttling mitigation, and callback resilience guarantees.
+#### Added
+- `#isUnlocking` flag — prevents duplicate unlock attempts when `start()` is called rapidly. The unlock `play()` is async; without this flag a race condition allowed multiple overlapping unlock sequences.
+- `destroy()` method — removes the `visibilitychange` listener. Essential for SPAs where engine instances are created and destroyed across component lifecycles.
+- `AudioEngine.canPlay(type)` static method — wraps `HTMLAudioElement.canPlayType()` with a clean boolean return. Use to check browser support for `.ogg`, `.wav`, or `.flac` before constructing an engine.
+- Callback resilience for `onCycleReset` — wrapped in try/catch, matching the existing resilience applied to `onPlay` and `onEnd`.
+- Comprehensive documentation — added HTML5 Audio vs. Web Audio API comparison, autoplay policy deep-dive, background tab throttling mitigation, and callback resilience guarantees.
 
-### Fixed
+#### Fixed
 - Race condition where spam-clicking `start()` could trigger multiple `#scheduleNext()` calls before the first unlock completed.
 - Potential memory leak: `visibilitychange` listener now properly removed on `destroy()`.
 
-### Changed
+#### Changed
 - Better error messages in console (include clip label and context).
 
-### Documentation
-- Added CHANGELOG.md (this file)
-- Expanded README with better examples and API reference
-- Created CONTRIBUTING.md with PR guidelines and testing checklist
+---
+
+### [2.3.0] — 2025-02-20
+
+#### Added
+- Clip `src` validation — constructor and `addClip()` now verify every clip has a non-empty string `src`.
+- Next-clip prefetch — `#scheduleNext()` sets `#audio.src` to the next selected clip immediately after the current clip ends, eliminating network fetch delay at `#playNext()` time.
+- Background tab throttling mitigation — `#scheduleNext()` records wall-clock time (`#timerSetAt`) and delay duration (`#timerDelay`). A `visibilitychange` listener recalculates and corrects timing on tab return.
+
+#### Fixed
+- Network latency no longer visible as gaps between clips.
+- Background tab throttling no longer causes clips to bunch on tab return.
+
+#### Changed
+- Improved console logging for debugging background tab behaviour.
 
 ---
 
-## [2.3.0] — 2025-02-20
+### [2.2.0] — 2025-01-10
 
-### Added
-- **Clip src validation** — Constructor and `addClip()` now verify that every clip has a non-empty string `src`. Previously a clip with missing or non-string `src` would silently map `undefined` into the engine, producing a confusing audio error rather than a clear failure at the point of entry.
-- **Next-clip prefetch** — `#scheduleNext()` now sets `#audio.src` to the next selected clip immediately after the current clip ends, before the inter-clip delay fires. The browser begins buffering the file during the gap, eliminating the network fetch delay at `#playNext()` time. The clip is still marked played and selected at schedule time, preserving shuffle-bag correctness.
-- **Background tab throttling mitigation** — `#scheduleNext()` records the wall-clock time (`#timerSetAt`) and delay duration (`#timerDelay`). A `visibilitychange` listener fires when the tab returns to foreground. If elapsed time meets or exceeds the intended delay, the pending timer is cancelled and `#playNext()` is called immediately. Otherwise, the remaining time is rescheduled precisely.
+#### Added
+- `reset()` method — stops playback, clears all played flags. Next `start()` begins a fresh random cycle.
+- `setVolume()` method — updates volume immediately on live playback and all future clips. Clamps to [0, 1].
 
-### Fixed
-- Network latency no longer visible as gaps between clips (prefetch eliminates fetch delay).
-- Background tab throttling no longer causes clips to bunch together on tab return (recalculation uses wall-clock time, not timer promises).
-
-### Changed
-- Improved console logging for debugging background tab behavior.
-
----
-
-## [2.2.0] — 2025-01-10
-
-### Added
-- **`reset()` method** — Stops playback, clears all `played` flags, and optionally resets the current clip. Next `start()` begins a completely fresh random cycle.
-- **`setVolume()` method** — Updates volume immediately on live playback and all future clips. Clamps to [0, 1].
-
-### Fixed
+#### Fixed
 - Volume no longer resets to default on clip transition.
 
 ---
 
-## [2.1.0] — 2024-12-05
+### [2.1.0] — 2024-12-05
 
-### Added
-- **`addClip(clip)` method** — Add new clips to the engine at runtime without reconstructing.
-- **Cycle-boundary repeat prevention** — When the unplayed pool is empty (cycle reset), the next clip is selected from all clips *except* the current clip, preventing the same clip from playing twice in a row across a cycle boundary.
+#### Added
+- `addClip(clip)` method — add new clips at runtime without reconstructing the engine.
+- Cycle-boundary repeat prevention — the clip that ended a cycle cannot immediately start the next one.
 
-### Fixed
-- Shuffle bag now correctly prevents the same clip from playing at the start and end of successive cycles.
-
----
-
-## [2.0.0] — 2024-10-01
-
-### Added
-- **Public API methods** — `start()`, `stop()`, `start()` for public control.
-- **Lifecycle callbacks** — `onPlay(clip)`, `onEnd(clip)`, `onCycleReset()` for integration with game/app logic.
-- **Options object** — `lowTime`, `maxTime`, `volume`, and callback configuration.
-- **Shuffle bag algorithm** — Guarantees each clip plays exactly once per cycle before repeats.
-- **Browser autoplay policy handling** — Silent base64 MP3 unlock on first `start()` call, subsequent clips scheduled via `setTimeout`.
-- **Background tab throttling mitigation** — Page Visibility API monitoring and wall-clock delay recalculation.
-
-### Documentation
-- Comprehensive JSDoc comments throughout
-- Browser compatibility notes
-- Web Audio API vs. HTML5 Audio comparison
-- Usage examples in code comments
+#### Fixed
+- Shuffle bag now correctly prevents the same clip playing at the end and start of successive cycles.
 
 ---
 
-## [1.0.0] — 2024-09-01
+### [2.0.0] — 2024-10-01
 
-### Initial Release
-- Self-contained randomized audio scheduling engine
-- No dependencies, no external libraries
-- HTML5 `<audio>` element-based scheduling
+#### Added
+- Public API — `start()`, `stop()`, lifecycle callbacks `onPlay`, `onEnd`, `onCycleReset`.
+- Options object — `lowTime`, `maxTime`, `volume`, and callback configuration.
+- Shuffle bag algorithm — guarantees each clip plays exactly once per cycle before repeats.
+- Browser autoplay policy handling — silent base64 MP3 unlock on first `start()` call.
+- Background tab throttling mitigation — Page Visibility API monitoring and wall-clock delay recalculation.
+- Comprehensive JSDoc, browser compatibility notes, Web Audio API comparison, and usage examples.
+
+---
+
+### [1.0.0] — 2024-09-01
+
+#### Added
+- Initial release: self-contained randomised audio scheduling engine
+- No dependencies, HTML5 `<audio>`-based scheduling
 - Basic shuffle bag implementation
-- Mobile-compatible (respects autoplay policies)
+- Mobile-compatible autoplay policy handling
 
 ---
 
 ## Upgrade Guide
 
-### 2.3 → 2.4
-- **No breaking changes.** New features are additive.
-- **Recommended:** Call `engine.destroy()` when tearing down in SPAs to prevent listener accumulation.
-- **New:** Use `AudioEngine.canPlay('audio/ogg')` to check format support before constructing.
+### OpenAudio.js 1.1 → 1.2
+No breaking changes. Fixes are internal.
+- If you were working around the iOS unlock bug manually, remove the workaround — it is now handled correctly.
+- Ensure `destroy()` is called on component unmount in SPAs.
 
-### 2.2 → 2.3
-- **No breaking changes.** Prefetch is transparent.
-- **Benefit:** Faster clip transitions due to network prefetch during inter-clip gap.
+### OpenAudio_s.js 1.0 → 1.1
+No breaking changes. Fixes are internal.
+- `advanceDelay` is now configurable (default `0.5s`). Set explicitly if you relied on the hardcoded value.
+- Ensure `destroy()` is called on component unmount in SPAs.
 
-### 2.0 → 2.1
-- **No breaking changes.** New methods are additive.
-- **New:** Cycle-boundary repeat prevention automatically enabled.
+### OpenAudio_r.js 2.4 → 2.4.1
+No breaking changes. Licence header update only.
 
-### 1.0 → 2.0
-- **Breaking:** Old version had no public API. Complete rewrite with methods and callbacks.
-- **Migration:** Wrap old code in a new `AudioEngine` constructor.
+### OpenAudio_r.js 2.3 → 2.4
+No breaking changes. New features are additive.
+- Recommended: call `engine.destroy()` when tearing down in SPAs.
+- New: use `AudioEngine.canPlay('audio/ogg')` to check format support before constructing.
+
+### OpenAudio_r.js 2.2 → 2.3
+No breaking changes. Prefetch is transparent.
+
+### OpenAudio_r.js 2.0 → 2.1
+No breaking changes. New methods are additive.
+
+### OpenAudio_r.js 1.0 → 2.0
+**Breaking:** old version had no public API. Complete rewrite with methods and callbacks.
 
 ---
 
 ## Future Considerations
 
-These features are **out of scope** for OpenAudio_r.js (it would violate the "self-contained, no dependencies" principle):
+These features are intentionally out of scope for the OpenAudio suite (they would require external dependencies or the Web Audio API):
 
 - Crossfading between clips
 - Sub-second precision scheduling
 - Real-time DSP effects (reverb, EQ, compression)
-- Frequency analysis or visualization
+- Frequency analysis or visualisation
 
-For these, consider graduating to the **Web Audio API**. See README.md for comparison.
+For these, consider graduating to the Web Audio API. See README.md for a comparison.
 
 ---
 
 ## Contributing
 
-Have a feature request or bug to report? See [CONTRIBUTING.md](./CONTRIBUTING.md).
+Have a feature request or bug to report? See [CONTRIBUTING.md](https://github.com/Rexore/OpenAudio/blob/main/CONTRIBUTING.md).
 
 All contributions will be credited in the changelog.
 
@@ -195,8 +220,8 @@ All contributions will be credited in the changelog.
 
 ## License
 
-OpenAudio_r.js is licensed under the GNU General Public License v3.0 or later. See [LICENSE](./LICENSE) for details.
+All OpenAudio libraries are licensed under the **Apache License 2.0**. See [LICENSE](https://github.com/Rexore/OpenAudio/blob/main/LICENSE) for details.
 
 ---
 
-*Last updated: March 15, 2025*
+*Last updated: March 2026*
