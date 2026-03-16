@@ -386,9 +386,9 @@ See [LICENSE](./LICENSE) for the full text.
 See [CHANGELOG.md](./CHANGELOG.md) for version history.
 
 **Current Versions:**
-- OpenAudio_r.js: **2.4.0** (March 2025)
-- OpenAudio_s.js: **1.0.0** (March 2025)
-- OpenAudio.js: **1.0.0** (March 2025)
+- OpenAudio_r.js: **2.4.1** (March 2025)
+- OpenAudio_s.js: **1.1.0** (March 2025)
+- OpenAudio.js: **1.2.0** (March 2025)
 
 ---
 
