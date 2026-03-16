@@ -63,7 +63,7 @@ document.getElementById('next-btn').addEventListener('click', () => player.next(
 - ⏸️ **Play/pause/resume** - Full transport controls
 - 📊 **Progress tracking** - Know your current position in sequence
 
-**Version:** 1.0.0 | **File:** `OpenAudio_s.js` (~5 KB, 2 KB gzipped)
+**Version:** 1.1.0 | **File:** `OpenAudio_s.js` (~5 KB, 2 KB gzipped)
 
 ---
 
@@ -91,7 +91,7 @@ document.getElementById('btn').addEventListener('click', () => player.play());
 - ⏸️ **Smart pause/resume** - Optional pause on background, resume on return
 - 📱 **Same autoplay unlock** - Silent MP3 unlock as others
 
-**Version:** 1.1.1 | **File:** `OpenAudio.js` (~5 KB, 2 KB gzipped)
+**Version:** 1.2.0| **File:** `OpenAudio.js` (~5 KB, 2 KB gzipped)
 
 ---
 
@@ -157,11 +157,11 @@ Q4: Do you need frame-perfect scheduling or effects?
 ```javascript
 import { AudioEngine } from './OpenAudio_r.js';
 import { SequentialAudio } from './OpenAudio_s.js';
-import { SingleAudio } from './OpenAudio.js';
+import { OpenAudio } from './OpenAudio.js';
 ```
 
 ### Option 3: npm
-```bash
+```markdown
 npm i openaudio-suite
 ```
 
