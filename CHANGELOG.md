@@ -5,8 +5,14 @@ All notable changes to the OpenAudio suite are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
-
 ## OpenAudio.js
+
+### [1.4.0] — 2026-03-17
+## OpenAudio.js
+ * <Strong>Lazy Loading</strong>: The audio source is set only when play() is called for the first time, <em>optimizing performance</em> by avoiding unnecessary network requests.
+ * <strong>Enhanced Error Handling</strong>: <em>Additional</em> error checks and informative error messages are added to ensure robust error handling.
+ * <strong>Improved Readability</strong>: Comments are <em>added</em> to explain complex parts of the code, making it easier to understand.<br><br>
+<em>Patched version should be more robust, performant, and easier to maintain.</em>
 
 ### [1.3.0] — 2026-03-16
 
