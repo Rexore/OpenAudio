@@ -408,7 +408,7 @@ See [CHANGELOG.md](https://github.com/Rexore/OpenAudio/blob/main/CHANGELOG.md) f
 
 * OpenAudio_r.js: **2.6.0** (March 2026)
 * OpenAudio_s.js: **1.3.0** (March 2026)
-* OpenAudio.js:   **1.3.0** (March 2026)
+* OpenAudio.js:   **1.4.0** (March 2026)
 
 ---
 
