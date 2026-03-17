@@ -1,6 +1,6 @@
 {
   "name": "openaudio-suite",
-  "version": "2.6.2",
+  "version": "2.6.2.5",
   "description": "Zero-dependency audio utilities for web browsers. Three libraries: OpenAudio_r.js (randomized scheduler), OpenAudio_s.js (sequential player), OpenAudio.js (single-clip player with background tab detection). Pure HTML5 Audio API. Apache-2.0.",
   "main": "OpenAudio_r.js",
   "type": "module",
